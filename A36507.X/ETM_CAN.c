@@ -263,7 +263,7 @@ void ETMCanMaster100msCommunication(void) {
   }
 }
 
-void ETMCanMasterReadyToPulse(void) {
+unsigned int ETMCanMasterReadyToPulse(void) {
   unsigned int ready_to_pulse;
   
   ready_to_pulse = etm_can_ethernet_board_data.software_pulse_enable;
@@ -809,7 +809,7 @@ void __attribute__((interrupt, no_auto_psv)) _CXInterrupt(void) {
 	etm_can_ethernet_board_data.fault_status_bits &= !msg_address;
       }
 
-      if (CXRX1b1 & 0x0002) {
+      if (CXRX1B1 & 0x0002) {
 	//The board is not ready to pulse, set the pulse inhibit for this board address
 	if ((etm_can_ethernet_board_data.pulse_inhibit_status_bits & msg_address) == 0) {
 	  etm_can_ethernet_board_data.pulse_inhibit_status_bits |= msg_address;

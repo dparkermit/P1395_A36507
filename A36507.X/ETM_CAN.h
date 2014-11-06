@@ -530,7 +530,7 @@ void ETMCanMaster100msCommunication(void);
 void ETMCanMasterPulseSyncDisable(void);
 void ETMCanMasterHVLambdaUpdateOutput(void);
 void ETMCanMasterGunDriverUpdatePulseTop(void);
-void ETMCanMasterReadyToPulse(void);
+unsigned int ETMCanMasterReadyToPulse(void);
 #else
 void ETMCanResetFaults(void);
 void ETMCanSendStatus(void);
@@ -577,6 +577,7 @@ void ETMCanLogCustomPacketF(void);
 #define ETM_CAN_BIT_HEATER_MAGNET_BOARD                                 0b0000000010000000
 #define ETM_CAN_BIT_GUN_DRIVER_BOARD                                    0b0000000100000000
 #define ETM_CAN_BIT_ALL_ACTIVE_BOARDS                                   0b0100000111111110
+#define ETM_CAN_BIT_ALL_ACTIVE_SLAVE_BOARDS                             0b0000000111111110
 
 
 // Default Register Locations

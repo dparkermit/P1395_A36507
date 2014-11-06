@@ -123,17 +123,16 @@ void ETMCanUpdateStatusBoardSpecific(ETMCanMessage* message_ptr) {
     break;
 
 
-    if ((etm_can_status_received_register & ETM_CAN_BIT_ALL_SLAVES) == ETM_CAN_BIT_ALL_SLAVES) {
-      // A status update has been received from all boards
-      TMR3 = 0;
-      etm_can_status_received_register = 0x0000;
-    } 
-    
   default:
     etm_can_can_status.can_status_address_error++;
     break;
-
   }
+  if ((etm_can_status_received_register & ETM_CAN_BIT_ALL_ACTIVE_SLAVE_BOARDS) == ETM_CAN_BIT_ALL_ACTIVE_SLAVE_BOARDS) {
+    // A status update has been received from all boards
+    TMR3 = 0;
+    etm_can_status_received_register = 0x0000;
+  } 
+
 }
 
 
