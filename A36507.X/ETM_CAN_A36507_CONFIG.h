@@ -1,6 +1,7 @@
 #ifndef __ETM_CAN_CONFIG_H
 #define __ETM_CAN_CONFIG_H
 
+// This has been configured for A36507 (master mode)
 
 #define __ETM_CAN_MASTER_MODULE
 
@@ -9,9 +10,15 @@
 
 #ifdef __ETM_CAN_MASTER_MODULE
 #define ETM_CAN_MY_ADDRESS                  ETM_CAN_ADDR_ETHERNET_BOARD
+#define ETM_CAN_STATUS_REGISTER_MASK        0x0000  // DPARKER CONFIGURE
+#define ETM_CAN_FAULT_REGISTER_MASK         0x0000  // DPARKER CONFIGURE
 #else
 #define ETM_CAN_MY_ADDRESS                  ETM_CAN_ADDR_HV_LAMBDA_BOARD
+#define ETM_CAN_STATUS_REGISTER_MASK        0x0000  // DPARKER CONFIGURE
+#define ETM_CAN_FAULT_REGISTER_MASK         0x0000  // DPARKER CONFIGURE
 #endif
+
+
 
 
 

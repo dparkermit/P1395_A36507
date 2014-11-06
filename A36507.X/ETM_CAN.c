@@ -42,7 +42,6 @@ void ETMCanDoSync(ETMCanMessage* message_ptr);
 #endif
 
 //local variables
-
 unsigned int etm_can_default_transmit_counter;
 
 
@@ -160,19 +159,6 @@ void ETMCanSendSync(unsigned int sync_3, unsigned int sync_2, unsigned int sync_
   etm_can_can_status.can_status_tx_1++;
 }
 
-void ETMCanEthernetSendPulseSyncOperate(unsigned int operate) {
-  ETMCanMessage operate_msg;
-  
-  operate_msg.identifier = ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_PULSE_SYNC_BOARD << 3);
-  if (operate) {
-    operate_msg.word3 = ETM_CAN_REGISTER_PULSE_SYNC_CMD_ENABLE_PULSES;
-  } else {
-    operate_msg.word3 = ETM_CAN_REGISTER_PULSE_SYNC_CMD_DISABLE_PULSES;
-  }
-  ETMCanTXMessage(&operate_msg, &CXTX2CON);
-  etm_can_can_status.can_status_tx_2++;  
-}
-
 
 void ETMCanMaster100msCommunication(void) {
   /*
@@ -209,7 +195,8 @@ void ETMCanMaster100msCommunication(void) {
 
       case 0x1:
 	// Send Enable/Disable command to Pulse Sync Board  (this is on TX2)
-	if (etm_can_pulse_sync_disable == 0x0000) {
+	if (ETMCanMasterReadyToPulse()) {
+	  // Send out message to enable Pulse Sync Board
 	  master_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_PULSE_SYNC_BOARD << 3));
 	  master_message.word3 = ETM_CAN_REGISTER_PULSE_SYNC_CMD_ENABLE_PULSES;
 	  master_message.word2 = 0;
@@ -244,7 +231,8 @@ void ETMCanMaster100msCommunication(void) {
 	
       case 0x5:
 	// Send Enable/Disable command to Pulse Sync Board  (this is on TX2)
-	if (etm_can_pulse_sync_disable == 0x0000) {
+	if (ETMCanMasterReadyToPulse()) {
+	  // Send out message to enable Pulse Sync Board
 	  master_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_PULSE_SYNC_BOARD << 3));
 	  master_message.word3 = ETM_CAN_REGISTER_PULSE_SYNC_CMD_ENABLE_PULSES;
 	  master_message.word2 = 0;
@@ -273,6 +261,22 @@ void ETMCanMaster100msCommunication(void) {
 	break;
       }
   }
+}
+
+void ETMCanMasterReadyToPulse(void) {
+  unsigned int ready_to_pulse;
+  
+  ready_to_pulse = etm_can_ethernet_board_data.software_pulse_enable;
+
+  if ((etm_can_ethernet_board_data.fault_status_bits) & ETM_CAN_BIT_ALL_ACTIVE_BOARDS) {
+    // There was a fault on one of the boards
+    ready_to_pulse = 0;
+  } 
+  if ((etm_can_ethernet_board_data.pulse_inhibit_status_bits) & ETM_CAN_BIT_ALL_ACTIVE_BOARDS) {
+    // One of the boards is not ready to pulse
+    ready_to_pulse = 0;
+  }
+  return ready_to_pulse;
 }
 
 void ETMCanMasterPulseSyncDisable(void) {
@@ -413,6 +417,24 @@ void ETMCanReturnValueCalibration(ETMCanMessage* message_ptr) {
 void ETMCanSendStatus(void) {
   ETMCanMessage status_message;
   status_message.identifier = ETM_CAN_MSG_STATUS_TX | (ETM_CAN_MY_ADDRESS << 3);
+  if (etm_can_status_register.status_word_0 & ETM_CAN_STATUS_REGISTER_MASK) {
+    // The board is not ready to pulse
+    // Set the Pulse Inhibit Bit
+    etm_can_status_register.status_word_0 |= 0x0002;
+  } else {
+    // Clear te Pulse Inhibit Bit
+    etm_can_status_register.status_word_0 &= 0xFFFD;
+  }
+
+  if (etm_can_status_register.status_word_1 & ETM_CAN_FAULT_REGISTER_MASK) {
+    // The board is faulted
+    // Set the Sum Fault Bit
+    etm_can_status_register.status_word_0 |= 0x0001;
+  } else {
+    // Clear the sum fault bit
+    etm_can_status_register.status_word_0 &= 0xFFFE;
+  }
+
   status_message.word0 = etm_can_status_register.status_word_0;
   status_message.word1 = etm_can_status_register.status_word_1;
   status_message.word2 = etm_can_status_register.data_word_A;
@@ -440,7 +462,7 @@ void ETMCanLogData(unsigned int packet_id, unsigned int word3, unsigned int word
   packet_id <<= 1;
   packet_id |= 0b0000011000000000;
   packet_id <<= 2;
-
+  
   log_message.identifier = packet_id;
   log_message.identifier &= 0xFF00;
   log_message.identifier <<= 3;
@@ -452,7 +474,7 @@ void ETMCanLogData(unsigned int packet_id, unsigned int word3, unsigned int word
   log_message.word3 = word3;
   
   ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &log_message);
-  MacroETMCanCheckTXBuffer()
+  MacroETMCanCheckTXBuffer();
 }
 
 
@@ -726,7 +748,7 @@ void ETMCanInitialize(void) {
 
 void __attribute__((interrupt, no_auto_psv)) _CXInterrupt(void) {
   ETMCanMessage can_message;
-  
+  unsigned int msg_address;
   _CXIF = 0;
   etm_can_can_status.can_status_isr_entered++;
 
@@ -764,17 +786,45 @@ void __attribute__((interrupt, no_auto_psv)) _CXInterrupt(void) {
        This command gets pushed onto the command message buffer
     */
     etm_can_can_status.can_status_rx_1_filt_2++;
-    ETMCanRXMessageBuffer(&etm_can_rx_message_buffer, &CXRX1CON);
+
 #ifdef __ETM_CAN_MASTER_MODULE
-    if (((CXRX1SID & ETM_CAN_MSG_MASTER_ADDR_MASK) == ETM_CAN_MSG_STATUS_RX) && (CXRX1B1 & 0x0001))  {
-      // The message is a status command that indicates a fault
-      // DPARKER set global error identifier
-      // DPARKER send out a disable command to the pulse sync board
+    if ((CXRX1SID & ETM_CAN_MSG_MASTER_ADDR_MASK) == ETM_CAN_MSG_STATUS_RX)  {
+      // The master is receiving a status update
+      // We need to immediately update the fault and pulse inhibit information
+      msg_address = CXRX1SID; 
+      msg_address >>= 3;
+      msg_address &= 0x000F;
+      msg_address = 1 << msg_address;
+      if (CXRX1B1 & 0x0001)  {
+	// This board is faulted set the fault bit for this board address
+	if ((etm_can_ethernet_board_data.fault_status_bits & msg_address) == 0) {
+	  // This is a NEW fault
+	  // We can't disable the pulse sync board here because of the asyncronous nature of this interrupt.
+	  // There could already be an "enable" command in process that would overwrite this disable when the interrupt exits (possibly even before the disable message is sent)
+	  etm_can_ethernet_board_data.fault_status_bits |= msg_address;
+	  etm_can_ethernet_board_data.pulse_sync_disable_requested = 1;
+	}
+      } else {
+	// Clear the fault bit for this board address
+	etm_can_ethernet_board_data.fault_status_bits &= !msg_address;
+      }
+
+      if (CXRX1b1 & 0x0002) {
+	//The board is not ready to pulse, set the pulse inhibit for this board address
+	if ((etm_can_ethernet_board_data.pulse_inhibit_status_bits & msg_address) == 0) {
+	  etm_can_ethernet_board_data.pulse_inhibit_status_bits |= msg_address;
+	  etm_can_ethernet_board_data.pulse_sync_disable_requested = 1;
+	}
+      } else {
+	// Clear the inibit status bit for this board address
+	etm_can_ethernet_board_data.pulse_inhibit_status_bits &= !msg_address;
+      }
     }
 #endif
+    ETMCanRXMessageBuffer(&etm_can_rx_message_buffer, &CXRX1CON);
     CXINTFbits.RX1IF = 0; // Clear the Interuppt Status bit
   }
-  
+    
   
   if ((!CXTX0CONbits.TXREQ) && (ETMCanBufferNotEmpty(&etm_can_tx_message_buffer))) {
     /*

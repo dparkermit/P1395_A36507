@@ -80,17 +80,9 @@
 #define CXCTRL_OPERATE_MODE_VALUE                0b0000000000000000      // This sets Fcan to 4xFcy
 #define CXCTRL_LOOPBACK_MODE_VALUE               0b0000001000000000      // This sets Fcan to 4xFcy
 
-//#define CXCTRL_CONFIG_MODE_VALUE                 0b0000110000000000      // This sets Fcan to 1xFcy
-//#define CXCTRL_OPERATE_MODE_VALUE                0b0000100000000000      // This sets Fcan to 1xFcy
-//#define CXCTRL_LOOPBACK_MODE_VALUE               0b0000101000000000      // This sets Fcan to 1xFcy
-//#define CXCFG1_10MHZ_FCY_VALUE                   0b0000000000000100      // This sets TQ to 4/Fcan
-
-
 #define CXCFG1_10MHZ_FCY_VALUE                   0b0000000000000001      // This sets TQ to 4/Fcan
 #define CXCFG1_20MHZ_FCY_VALUE                   0b0000000000000011      // This sets TQ to 8/Fcan
 #define CXCFG1_25MHZ_FCY_VALUE                   0b0000000000000100      // This sets TQ to 10/Fcan
-
-//#define CXCFG2_VALUE                             0b0000010110100011      // This will created a bit timing of 12x TQ
 
 #define CXCFG2_VALUE                             0b0000001110010001      // This will created a bit timing of 10x TQ
 
@@ -260,12 +252,11 @@ typedef struct {
   ETMCanSystemDebugData* debug_data;
   ETMCanCanStatus*       can_status;
   ETMCanAgileConfig*     configuration;
-  
-  // Values that the Ethernet control board sets on HV Lambda
-  // NONE AT THIS TIME
 
-  // "SLOW" Data that the Ethernet control board reads back from HV Lambda
-  // DOES NOT MAKE SENSE FOR THIS BOARD
+  unsigned int           fault_status_bits;
+  unsigned int           pulse_inhibit_status_bits;
+  unsigned int           software_pulse_enable;
+  unsigned int           pulse_sync_disable_requested;
 
 } ETMCanRamMirrorEthernetBoard;
 
@@ -514,7 +505,7 @@ extern ETMCanHighSpeedData              etm_can_high_speed_data_test;
 extern ETMCanRamMirrorEthernetBoard     etm_can_ethernet_board_data;
 
 #else
-extern unsigned int etm_can_high_speed_data_logging_enabled;
+extern unsigned int etm_can_high_speed_data_logging_enabled;  // DPARKER do not use this variable, use the status register bit instead
 #endif
 
 // Public Debug and Status registers
@@ -535,11 +526,11 @@ void ETMCanIonPumpSendTargetCurrentReading(unsigned int target_current_reading, 
 void ETMCanUpdateStatusBoardSpecific(ETMCanMessage* message_ptr);
 void ETMCanProcessLogData(void);
 void ETMCanSendSync(unsigned int sync_3, unsigned int sync_2, unsigned int sync_1, unsigned int sync_0);
-void ETMCanEthernetSendPulseSyncOperate(unsigned int operate);
 void ETMCanMaster100msCommunication(void);
 void ETMCanMasterPulseSyncDisable(void);
 void ETMCanMasterHVLambdaUpdateOutput(void);
 void ETMCanMasterGunDriverUpdatePulseTop(void);
+void ETMCanMasterReadyToPulse(void);
 #else
 void ETMCanResetFaults(void);
 void ETMCanSendStatus(void);
@@ -576,16 +567,16 @@ void ETMCanLogCustomPacketF(void);
 #define ETM_CAN_ADDR_GUN_DRIVER_BOARD                                   8
 
 
-#define ETM_CAN_BIT_ETHERNET_BOARD                                      0b1000000000000000
-#define ETM_CAN_BIT_ION_PUMP_BOARD                                      0b0000000000000001
-#define ETM_CAN_BIT_MAGNETRON_CURRENT_BOARD                             0b0000000000000010
-#define ETM_CAN_BIT_PULSE_SYNC_BOARD                                    0b0000000000000100
-#define ETM_CAN_BIT_HV_LAMBDA_BOARD                                     0b0000000000001000
-#define ETM_CAN_BIT_AFC_CONTROL_BOARD                                   0b0000000000010000
-#define ETM_CAN_BIT_COOLING_INTERFACE_BOARD                             0b0000000000100000
-#define ETM_CAN_BIT_HEATER_MAGNET_BOARD                                 0b0000000001000000
-#define ETM_CAN_BIT_GUN_DRIVER_BOARD                                    0b0000000010000000
-#define ETM_CAN_BIT_ALL_SLAVES                                          0b0000000011111111
+#define ETM_CAN_BIT_ETHERNET_BOARD                                      0b0100000000000000
+#define ETM_CAN_BIT_ION_PUMP_BOARD                                      0b0000000000000010
+#define ETM_CAN_BIT_MAGNETRON_CURRENT_BOARD                             0b0000000000000100
+#define ETM_CAN_BIT_PULSE_SYNC_BOARD                                    0b0000000000001000
+#define ETM_CAN_BIT_HV_LAMBDA_BOARD                                     0b0000000000010000
+#define ETM_CAN_BIT_AFC_CONTROL_BOARD                                   0b0000000000100000
+#define ETM_CAN_BIT_COOLING_INTERFACE_BOARD                             0b0000000001000000
+#define ETM_CAN_BIT_HEATER_MAGNET_BOARD                                 0b0000000010000000
+#define ETM_CAN_BIT_GUN_DRIVER_BOARD                                    0b0000000100000000
+#define ETM_CAN_BIT_ALL_ACTIVE_BOARDS                                   0b0100000111111110
 
 
 // Default Register Locations
@@ -741,6 +732,10 @@ void ETMCanLogCustomPacketF(void);
 
 
 
+
+
+
+
 #define ETM_CAN_DATA_LOG_REGISTER_HV_LAMBDA_FAST_PROGRAM_VOLTAGE        0x4C
 #define ETM_CAN_DATA_LOG_REGISTER_HV_LAMBDA_SLOW_SET_POINT              0x4D
 
@@ -770,6 +765,55 @@ void ETMCanLogCustomPacketF(void);
 #define ETM_CAN_DATA_LOG_REGISTER_PULSE_SYNC_SLOW_TIMING_DATA_0         0x3D
 #define ETM_CAN_DATA_LOG_REGISTER_PULSE_SYNC_SLOW_TIMING_DATA_1         0x3E
 #define ETM_CAN_DATA_LOG_REGISTER_PULSE_SYNC_SLOW_TIMING_DATA_2         0x3F
+
+
+
+
+
+// ------------------- STATUS REGISTER --------------------------//
+
+#define ETM_CAN_STATUS_WORD_0_SUM_FAULT                       0b0000000000000001
+#define ETM_CAN_STATUS_WORD_0_PULSE_INHIBITED                 0b0000000000000010
+#define ETM_CAN_STATUS_WORD_0_BOARD_WAITING_INITIAL_CONFIG    0b0000000000000100
+#define ETM_CAN_STATUS_WORD_0_BOARD_SELF_CHECK_FAILED         0b0000000000001000
+#define ETM_CAN_STATUS_WORD_0_HIGH_SPEED_LOGGING_ENABLED      0b0000000000010000
+#define ETM_CAN_STATUS_WORD_0_STATUS_UNUSED_1                 0b0000000000100000
+#define ETM_CAN_STATUS_WORD_0_STATUS_UNUSED_2                 0b0000000001000000
+#define ETM_CAN_STATUS_WORD_0_STATUS_UNUSED_3                 0b0000000010000000
+
+#define ETM_CAN_STATUS_WORD_0_USER_DEFINED_8                  0b0000000100000000
+#define ETM_CAN_STATUS_WORD_0_USER_DEFINED_9                  0b0000001000000000
+#define ETM_CAN_STATUS_WORD_0_USER_DEFINED_10                 0b0000010000000000
+#define ETM_CAN_STATUS_WORD_0_USER_DEFINED_11                 0b0000100000000000
+#define ETM_CAN_STATUS_WORD_0_USER_DEFINED_12                 0b0001000000000000
+#define ETM_CAN_STATUS_WORD_0_USER_DEFINED_13                 0b0010000000000000
+#define ETM_CAN_STATUS_WORD_0_USER_DEFINED_14                 0b0100000000000000
+#define ETM_CAN_STATUS_WORD_0_USER_DEFINED_15                 0b1000000000000000
+
+
+
+
+// ----------------- FAULT/WARNING Register --------------------------//
+
+#define ETM_CAN_STATUS_WORD_1_FAULT_CAN_BUS                   0b0000000000000001
+#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_1            0b0000000000000010
+#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_2            0b0000000000000100
+#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_3            0b0000000000001000
+#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_4            0b0000000000010000
+#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_5            0b0000000000100000
+#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_6            0b0000000001000000
+#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_7            0b0000000010000000
+
+#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_8            0b0000000100000000
+#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_9            0b0000001000000000
+#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_10           0b0000010000000000
+#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_11           0b0000100000000000
+#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_12           0b0001000000000000
+#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_13           0b0010000000000000
+#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_14           0b0100000000000000
+#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_15           0b1000000000000000
+
+
 
 
 

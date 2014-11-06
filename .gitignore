@@ -16,3 +16,6 @@
 *~
 *#
 *.old
+
+# Other Project Files to be ignored
+A36444*
