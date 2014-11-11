@@ -1,5 +1,9 @@
 #include "ETM_CAN.h"
-#include "timer.h"  // DPARKER remove the requirement for this
+
+
+void ETMCanCheckForStatusChange(void);
+
+
 
 
 
@@ -28,24 +32,58 @@ ETMCanAgileConfig     etm_can_my_configuration;
 ETMCanCanStatus       etm_can_can_status;
 
 // Private Functions
+void ETMCanProcessMessage(void);
 void ETMCanSetValue(ETMCanMessage* message_ptr);
 void ETMCanSetValueCalibration(ETMCanMessage* message_ptr);
+void ETMCanCheckForTimeOut(void);
+
+
 #ifdef __ETM_CAN_MASTER_MODULE
 void ETMCanSetValueCalibrationUpload(ETMCanMessage* message_ptr);
+void ETMCanProcessLogData(void);
+void ETMCanMasterStandardCommunication(void);
 #else
+
+void ETMCanUpdateFaultAndInhibitBits(void);
+void ETMCanSendStatus(void);
+
 void ETMCanExecuteCMD(ETMCanMessage* message_ptr);
 void ETMCanExecuteCMDDefault(ETMCanMessage* message_ptr);
+
 void ETMCanReturnValue(ETMCanMessage* message_ptr);
 void ETMCanReturnValueCalibration(ETMCanMessage* message_ptr);
-void ETMCanDoSync(ETMCanMessage* message_ptr);
 
+void ETMCanDoSlaveSync(ETMCanMessage* message_ptr);
+void ETMCanDoSlaveLog(void);
 #endif
 
 //local variables
 unsigned int etm_can_default_transmit_counter;
 
 
+void ETMCanDoCan(void) {
 
+  ETMCanProcessMessage();
+
+#ifdef __ETM_CAN_MASTER_MODULE
+  ETMCanProcessLogData();
+  ETMCanMasterStandardCommunication();
+#else
+  ETMCanDoSlaveLog();
+  ETMCanCheckForStatusChange();
+#endif
+  
+  
+  ETMCanCheckForTimeOut();
+}
+
+void ETMCanCheckForTimeOut(void) {
+  if (_T3IF) {
+    _T3IF = 0;
+    etm_can_can_status.can_status_timeout++;
+    etm_can_status_register.status_word_1 |= ETM_CAN_STATUS_WORD_1_FAULT_CAN_BUS;
+  }
+}
 
 
 
@@ -160,7 +198,7 @@ void ETMCanSendSync(unsigned int sync_3, unsigned int sync_2, unsigned int sync_
 }
 
 
-void ETMCanMaster100msCommunication(void) {
+void ETMCanMasterStandardCommunication(void) {
   /*
     One command is schedule to be sent every 25ms
     This loops through 8 times so each command is sent once every 200mS (5Hz)
@@ -183,14 +221,6 @@ void ETMCanMaster100msCommunication(void) {
       case 0x0:
 	// Send Sync Command (this is on TX1)
 	ETMCanSendSync(0,0,0,0);
-
-	// DPARKER change to the "operate LED"
-	// Flash the Operate LED
-	if (_LATG14) {
-	  _LATG14 = 0;
-	} else {
-	  _LATG14 = 1;
-	}
 	break;
 
       case 0x1:
@@ -316,6 +346,40 @@ void ETMCanMasterGunDriverUpdatePulseTop(void) {
 
 #else
 
+
+void ETMCanCheckForStatusChange(void) {
+  unsigned int previous_status;
+  
+  previous_status = (etm_can_status_register.status_word_0 & 0x0003);
+  
+  ETMCanUpdateFaultAndInhibitBits();
+  
+  if ((previous_status == 0) && ((etm_can_status_register.status_word_0 & 0x0003) != 0)) {
+    // There is new condition that is causing this board to inhibit operation.
+    // Send a status update upstream to Master
+    ETMCanSendStatus();
+  }
+}
+
+
+void ETMCanUpdateFaultAndInhibitBits(void) {
+  // Update the Fault bit
+  // The individual Fault bits are latched but not the Sum Fault bit
+  if (etm_can_status_register.status_word_1 & ETM_CAN_FAULT_MASK) {
+    etm_can_status_register.status_word_0 |= ETM_CAN_STATUS_WORD_0_SUM_FAULT;  // Set the Fault Bit
+  } else {
+    etm_can_status_register.status_word_0 &= !ETM_CAN_STATUS_WORD_0_SUM_FAULT;  // Clear the Fault Bit
+  }
+  
+  // Update the Inhibit bit
+  if (etm_can_status_register.status_word_0 & ETM_CAN_INHIBIT_MASK) {
+    etm_can_status_register.status_word_0 |= ETM_CAN_STATUS_WORD_0_PULSE_INHIBITED;  // Set the Inhibit Bit
+  } else {
+    etm_can_status_register.status_word_0 &= !ETM_CAN_STATUS_WORD_0_PULSE_INHIBITED;  // Clear the Inhibit Bit
+  }
+  
+}
+
 void ETMCanExecuteCMD(ETMCanMessage* message_ptr) {
   unsigned int index_word;
   index_word = message_ptr->word3;
@@ -365,11 +429,11 @@ void ETMCanExecuteCMDDefault(ETMCanMessage* message_ptr) {
     break;
  
   case ETM_CAN_REGISTER_DEFAULT_CMD_DISABLE_HIGH_SPEED_DATA_LOGGING:
-    etm_can_high_speed_data_logging_enabled = 0;
+    etm_can_status_register.status_word_0 &= !ETM_CAN_STATUS_WORD_0_HIGH_SPEED_LOGGING_ENABLED;  // Clear the bit
     break;
 
   case ETM_CAN_REGISTER_DEFAULT_CMD_ENABLE_HIGH_SPEED_DATA_LOGGING:
-    etm_can_high_speed_data_logging_enabled = 1;
+    etm_can_status_register.status_word_0 |= ETM_CAN_STATUS_WORD_0_HIGH_SPEED_LOGGING_ENABLED;  // Set the bit
     break;
    
   default:
@@ -417,23 +481,8 @@ void ETMCanReturnValueCalibration(ETMCanMessage* message_ptr) {
 void ETMCanSendStatus(void) {
   ETMCanMessage status_message;
   status_message.identifier = ETM_CAN_MSG_STATUS_TX | (ETM_CAN_MY_ADDRESS << 3);
-  if (etm_can_status_register.status_word_0 & ETM_CAN_STATUS_REGISTER_MASK) {
-    // The board is not ready to pulse
-    // Set the Pulse Inhibit Bit
-    etm_can_status_register.status_word_0 |= 0x0002;
-  } else {
-    // Clear te Pulse Inhibit Bit
-    etm_can_status_register.status_word_0 &= 0xFFFD;
-  }
 
-  if (etm_can_status_register.status_word_1 & ETM_CAN_FAULT_REGISTER_MASK) {
-    // The board is faulted
-    // Set the Sum Fault Bit
-    etm_can_status_register.status_word_0 |= 0x0001;
-  } else {
-    // Clear the sum fault bit
-    etm_can_status_register.status_word_0 &= 0xFFFE;
-  }
+  ETMCanUpdateFaultAndInhibitBits();
 
   status_message.word0 = etm_can_status_register.status_word_0;
   status_message.word1 = etm_can_status_register.status_word_1;
@@ -445,11 +494,12 @@ void ETMCanSendStatus(void) {
 }
 
 
-void ETMCanDoSync(ETMCanMessage* message_ptr) {
+void ETMCanDoSlaveSync(ETMCanMessage* message_ptr) {
   // Sync data is available in CXRX0B1->CXRX0B4
   // At this time all that happens is that the chip watchdog is reset
   // DPARKER move to assembly and issure W0-W3, SR usage
   ClrWdt();
+  TMR3 = 0;
 }
 
 
@@ -479,7 +529,7 @@ void ETMCanLogData(unsigned int packet_id, unsigned int word3, unsigned int word
 
 
 
-void ETMCanSlaveLog100ms(void) {
+void ETMCanDoSlaveLog(void) {
   // Sends the debug information up as log data  
   if (_T2IF) {
     // should be true once every 100mS
@@ -487,13 +537,6 @@ void ETMCanSlaveLog100ms(void) {
     
     etm_can_default_transmit_counter++;
     etm_can_default_transmit_counter &= 0xF;
-    
-    // DPARKER change to the "operate LED"
-    if (_LATG14) {
-      _LATG14 = 0;
-    } else {
-      _LATG14 = 1;
-    }
     
     ETMCanSendStatus(); // Send out the status every 100mS
     
@@ -706,38 +749,32 @@ void ETMCanInitialize(void) {
   // DPARKER please use #defines on all the timers and have it check the FCY so that it uses the appropriate timer value
 
   // Configure T2
-#ifdef __ETM_CAN_MASTER_MODULE
-  // DPARKER - THIS ASSUMES 10MHZ CLOCK
-  T2CON = (T2_OFF & T2_IDLE_CON & T2_GATE_OFF & T2_PS_1_256 & T2_32BIT_MODE_OFF & T2_SOURCE_INT);
-  PR2 = 976;  // 25mS Period
+  T2CON = T2CON_VALUE;
+  PR2 = PR2_VALUE;  
   TMR2 = 0;
   _T2IF = 0;
   _T2IE = 0;
   T2CONbits.TON = 1;
-#else
-  // DPARKER - THIS ASSUMES 10MHZ CLOCK
-  T2CON = (T2_OFF & T2_IDLE_CON & T2_GATE_OFF & T2_PS_1_256 & T2_32BIT_MODE_OFF & T2_SOURCE_INT);
-  PR2 = 3906;  // 100mS period
-  TMR2 = 0;
-  _T2IF = 0;
-  _T2IE = 0;
-  T2CONbits.TON = 1;
-#endif
-
 
   // Configure T3
-#ifdef __ETM_CAN_MASTER_MODULE
-  // DPARKER - THIS ASSUMES 10MHZ CLOCK
-  T3CON = (T3_OFF & T3_IDLE_CON & T3_GATE_OFF & T3_PS_1_256 & T3_SOURCE_INT);
-  PR2 = 9766;  // 250mS Period
-#else  
-  // DPARKER - THIS ASSUMES 10MHZ CLOCK
-  T3CON = (T3_OFF & T3_IDLE_CON & T3_GATE_OFF & T3_PS_1_256 & T3_SOURCE_INT);
-  PR2 = 9766;  // 250mS Period
-#endif
+  T3CON = T3CON_VALUE;
+  PR3 = PR3_VALUE;
+  _T3IF = 0;
+  _T3IE = 0;
+  T3CONbits.TON = 1;
 
-
-
+  // DPARKER read configuration from on chip FLASH!!!  // This will be set when the device is programmed as soon as I figure out how to do that.
+  etm_can_my_configuration.agile_number_high_word = 0;
+  etm_can_my_configuration.agile_number_low_word  = 36224;
+  etm_can_my_configuration.agile_dash             = 500;
+  etm_can_my_configuration.agile_rev_ascii        = 'A';
+  etm_can_my_configuration.serial_number          = 201;
+  
+  // DPARKER Firmware version data should be stored in H File
+  //etm_can_my_configuration.firmware_branch        = FIRMWARE_BRANCH_A36444;
+  //etm_can_my_configuration.firmware_major_rev     = FIRMWARE_MAJOR_REV_A36444;
+  //etm_can_my_configuration.firmware_minor_rev     = FIRMWARE_MINOR_REV_A36444;
+  
 }
 
 
@@ -748,7 +785,10 @@ void ETMCanInitialize(void) {
 
 void __attribute__((interrupt, no_auto_psv)) _CXInterrupt(void) {
   ETMCanMessage can_message;
+#ifdef __ETM_CAN_MASTER_MODULE
   unsigned int msg_address;
+#endif
+
   _CXIF = 0;
   etm_can_can_status.can_status_isr_entered++;
 
@@ -773,7 +813,7 @@ void __attribute__((interrupt, no_auto_psv)) _CXInterrupt(void) {
 #else
       // The command is a sync command.
       ETMCanRXMessage(&can_message, &CXRX0CON);
-      ETMCanDoSync(&can_message);
+      ETMCanDoSlaveSync(&can_message);
 #endif
     }
     CXINTFbits.RX0IF = 0; // Clear the Interuppt Status bit
@@ -846,4 +886,448 @@ void __attribute__((interrupt, no_auto_psv)) _CXInterrupt(void) {
 
   etm_can_can_status.can_status_CXEC_reg = CXEC;
 }
+
+
+
+
+
+
+
+
+
+
+#ifdef __ETM_CAN_MASTER_MODULE
+ETMCanRamMirrorHVLambda          etm_can_hv_lamdba_mirror;
+ETMCanRamMirrorIonPump           etm_can_ion_pump_mirror;
+ETMCanRamMirrorAFC               etm_can_afc_mirror;
+ETMCanRamMirrorCooling           etm_can_cooling_mirror;
+ETMCanRamMirrorHeaterMagnet      etm_can_heater_magnet_mirror;
+ETMCanRamMirrorGunDriver         etm_can_gun_driver_mirror;
+ETMCanRamMirrorMagnetronCurrent  etm_can_magnetron_current_mirror;
+ETMCanRamMirrorPulseSync         etm_can_pulse_sync_mirror;
+
+ETMCanHighSpeedData              etm_can_high_speed_data_test;
+
+
+
+
+void ETMCanProcessLogData(void) {
+  ETMCanMessage          next_message;
+  unsigned int           data_log_index;
+  ETMCanSystemDebugData* debug_data_ptr;
+  ETMCanAgileConfig*     config_data_ptr;
+  ETMCanCanStatus*       can_status_ptr;
+
+  while (ETMCanBufferNotEmpty(&etm_can_rx_data_log_buffer)) {
+    ETMCanReadMessageFromBuffer(&etm_can_rx_data_log_buffer, &next_message);
+    data_log_index = next_message.identifier;
+    data_log_index >>= 3;
+    data_log_index &= 0x00FF;
+    
+    if ((data_log_index & 0x000F) <= 0x000B) {
+      // It is a common data logging buffer, load into the appropraite ram location
+      
+
+      // First figure out which board the data is from
+      switch (data_log_index >> 4) 
+	{
+	case ETM_CAN_ADDR_ION_PUMP_BOARD:
+	  debug_data_ptr  = &etm_can_ion_pump_mirror.debug_data;
+	  config_data_ptr = &etm_can_ion_pump_mirror.configuration;
+	  can_status_ptr  = &etm_can_ion_pump_mirror.can_status;
+	  break;
+	  
+	case ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD:
+	  debug_data_ptr  = &etm_can_magnetron_current_mirror.debug_data;
+	  config_data_ptr = &etm_can_magnetron_current_mirror.configuration;
+	  can_status_ptr  = &etm_can_magnetron_current_mirror.can_status;
+	  break;
+
+	case ETM_CAN_ADDR_PULSE_SYNC_BOARD:
+	  debug_data_ptr  = &etm_can_pulse_sync_mirror.debug_data;
+	  config_data_ptr = &etm_can_pulse_sync_mirror.configuration;
+	  can_status_ptr  = &etm_can_pulse_sync_mirror.can_status;
+	  break;
+	  
+	case ETM_CAN_ADDR_HV_LAMBDA_BOARD:
+	  debug_data_ptr  = &etm_can_hv_lamdba_mirror.debug_data;
+	  config_data_ptr = &etm_can_hv_lamdba_mirror.configuration;
+	  can_status_ptr  = &etm_can_hv_lamdba_mirror.can_status;
+	  break;
+	  
+	case ETM_CAN_ADDR_AFC_CONTROL_BOARD:
+	  debug_data_ptr  = &etm_can_afc_mirror.debug_data;
+	  config_data_ptr = &etm_can_afc_mirror.configuration;
+	  can_status_ptr  = &etm_can_afc_mirror.can_status;
+	  break;
+
+	case ETM_CAN_ADDR_COOLING_INTERFACE_BOARD:
+	  debug_data_ptr  = &etm_can_cooling_mirror.debug_data;
+	  config_data_ptr = &etm_can_cooling_mirror.configuration;
+	  can_status_ptr  = &etm_can_cooling_mirror.can_status;
+	  break;
+	  
+	case ETM_CAN_ADDR_HEATER_MAGNET_BOARD:
+	  debug_data_ptr  = &etm_can_heater_magnet_mirror.debug_data;
+	  config_data_ptr = &etm_can_heater_magnet_mirror.configuration;
+	  can_status_ptr  = &etm_can_heater_magnet_mirror.can_status;
+	  break;
+
+	case ETM_CAN_ADDR_GUN_DRIVER_BOARD:
+	  debug_data_ptr  = &etm_can_gun_driver_mirror.debug_data;
+	  config_data_ptr = &etm_can_gun_driver_mirror.configuration;
+	  can_status_ptr  = &etm_can_gun_driver_mirror.can_status;
+	  break;
+
+	default:
+	  //DPARKER add in some error counter
+	  break;
+	  
+	}
+
+      // Now figure out which data log it is
+      switch (data_log_index & 0x000F)
+	{
+	case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_ERROR_0:
+	  debug_data_ptr->i2c_bus_error_count        = next_message.word3;
+	  debug_data_ptr->spi_bus_error_count        = next_message.word2;
+	  debug_data_ptr->can_bus_error_count        = next_message.word1;
+	  debug_data_ptr->scale_error_count          = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_ERROR_1:
+	  debug_data_ptr->reset_count                = next_message.word3;
+	  debug_data_ptr->self_test_result_register  = next_message.word2;
+	  debug_data_ptr->reserved_0                 = next_message.word1;
+	  debug_data_ptr->reserved_1                 = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_0:
+	  debug_data_ptr->debug_0                    = next_message.word3;
+	  debug_data_ptr->debug_1                    = next_message.word2;
+	  debug_data_ptr->debug_2                    = next_message.word1;
+	  debug_data_ptr->debug_3                    = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_1:
+	  debug_data_ptr->debug_4                    = next_message.word3;
+	  debug_data_ptr->debug_5                    = next_message.word2;
+	  debug_data_ptr->debug_6                    = next_message.word1;
+	  debug_data_ptr->debug_7                    = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_2:
+	  debug_data_ptr->debug_8                    = next_message.word3;
+	  debug_data_ptr->debug_9                    = next_message.word2;
+	  debug_data_ptr->debug_A                    = next_message.word1;
+	  debug_data_ptr->debug_B                    = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_3:
+	  debug_data_ptr->debug_C                    = next_message.word3;
+	  debug_data_ptr->debug_D                    = next_message.word2;
+	  debug_data_ptr->debug_E                    = next_message.word1;
+	  debug_data_ptr->debug_F                    = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_0:
+	  config_data_ptr->agile_number_high_word     = next_message.word3;
+	  config_data_ptr->agile_number_low_word      = next_message.word2;
+	  config_data_ptr->agile_dash                 = next_message.word1;
+	  config_data_ptr->agile_rev_ascii            = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_1:
+	  config_data_ptr->serial_number              = next_message.word3;
+	  config_data_ptr->firmware_branch            = next_message.word2;
+	  config_data_ptr->firmware_major_rev         = next_message.word1;
+	  config_data_ptr->firmware_minor_rev         = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_0:
+	  can_status_ptr->can_status_CXEC_reg        = next_message.word3;
+	  can_status_ptr->can_status_error_flag      = next_message.word2;
+	  can_status_ptr->can_status_tx_1            = next_message.word1;
+	  can_status_ptr->can_status_tx_2            = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_1:
+	  can_status_ptr->can_status_rx_0_filt_0     = next_message.word3;
+	  can_status_ptr->can_status_rx_0_filt_1     = next_message.word2;
+	  can_status_ptr->can_status_rx_1_filt_2     = next_message.word1;
+	  can_status_ptr->can_status_isr_entered     = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_2:
+	  can_status_ptr->can_status_unknown_message_identifier     = next_message.word3;
+	  can_status_ptr->can_status_invalid_index                  = next_message.word2;
+	  can_status_ptr->can_status_address_error                  = next_message.word1;
+	  can_status_ptr->can_status_tx_0                           = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_3:
+	  can_status_ptr->can_status_message_tx_buffer_overflow     = next_message.word3;
+	  can_status_ptr->can_status_message_rx_buffer_overflow     = next_message.word2;
+	  can_status_ptr->can_status_data_log_rx_buffer_overflow    = next_message.word1;
+	  can_status_ptr->can_status_timeout                        = next_message.word0;
+	  break;
+	  
+	} 
+
+    } else {
+      // It is board specific logging data
+      switch (data_log_index) 
+	{
+	case ETM_CAN_DATA_LOG_REGISTER_HV_LAMBDA_FAST_PROGRAM_VOLTAGE:
+	  etm_can_high_speed_data_test.pulse_count = next_message.word3;
+	  etm_can_high_speed_data_test.hvlambda_readback_high_energy_lambda_program_voltage = next_message.word2;
+	  etm_can_high_speed_data_test.hvlambda_readback_low_energy_lambda_program_voltage = next_message.word1;
+	  etm_can_high_speed_data_test.hvlambda_readback_peak_lambda_voltage = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_HV_LAMBDA_SLOW_SET_POINT:
+	  etm_can_hv_lamdba_mirror.hvlambda_readback_high_energy_set_point = next_message.word2;
+	  etm_can_hv_lamdba_mirror.hvlambda_readback_low_energy_set_point = next_message.word1;
+	  etm_can_hv_lamdba_mirror.hvlambda_readback_base_plate_temp = next_message.word0;
+	  break;
+
+	  
+	case ETM_CAN_DATA_LOG_REGISTER_ION_PUMP_SLOW_MONITORS:
+	  etm_can_ion_pump_mirror.ionpump_readback_ion_pump_volage_monitor = next_message.word3;
+	  etm_can_ion_pump_mirror.ionpump_readback_ion_pump_current_monitor = next_message.word2;
+	  etm_can_ion_pump_mirror.ionpump_readback_filtered_high_energy_target_current = next_message.word1;
+	  etm_can_ion_pump_mirror.ionpump_readback_filtered_low_energy_target_current = next_message.word0;
+	  break;
+
+
+	case ETM_CAN_DATA_LOG_REGISTER_AFC_FAST_POSITION:
+	  etm_can_high_speed_data_test.pulse_count = next_message.word3;
+	  etm_can_high_speed_data_test.afc_readback_current_position = next_message.word2;
+	  etm_can_high_speed_data_test.afc_readback_target_position = next_message.word1;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_AFC_FAST_READINGS:
+	  etm_can_high_speed_data_test.pulse_count = next_message.word3;
+	  etm_can_high_speed_data_test.afc_readback_a_input = next_message.word2;
+	  etm_can_high_speed_data_test.afc_readback_b_input = next_message.word1;
+	  etm_can_high_speed_data_test.afc_readback_filtered_error_reading = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_AFC_SLOW_SETTINGS:
+	  etm_can_afc_mirror.afc_readback_home_position = next_message.word3;
+	  etm_can_afc_mirror.afc_readback_offset = next_message.word2;
+	  etm_can_afc_mirror.afc_readback_current_position = next_message.word1;
+	  break;
+
+
+	case ETM_CAN_DATA_LOG_REGISTER_MAGNETRON_MON_FAST_PREVIOUS_PULSE:
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_MAGNETRON_MON_SLOW_FILTERED_PULSE:
+	  etm_can_magnetron_current_mirror.magmon_readback_spare = next_message.word3;
+	  etm_can_magnetron_current_mirror.magmon_readback_arcs_this_hv_on = next_message.word2;
+	  etm_can_magnetron_current_mirror.magmon_filtered_low_energy_pulse_current = next_message.word1;
+	  etm_can_magnetron_current_mirror.magmon_filtered_high_energy_pulse_current = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_MAGNETRON_MON_SLOW_ARCS:
+	  etm_can_magnetron_current_mirror.magmon_arcs_lifetime = next_message.word3;
+	  etm_can_magnetron_current_mirror.magmon_arcs_lifetime <<= 16;
+	  etm_can_magnetron_current_mirror.magmon_arcs_lifetime += next_message.word2;
+	  etm_can_magnetron_current_mirror.magmon_pulses_this_hv_on = next_message.word1;
+	  etm_can_magnetron_current_mirror.magmon_pulses_this_hv_on <<= 16;
+	  etm_can_magnetron_current_mirror.magmon_pulses_this_hv_on += next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_MAGNETRON_MON_SLOW_PULSE_COUNT:
+	  etm_can_magnetron_current_mirror.magmon_pulses_lifetime = next_message.word3;
+	  etm_can_magnetron_current_mirror.magmon_pulses_lifetime <<= 16;
+	  etm_can_magnetron_current_mirror.magmon_pulses_lifetime += next_message.word2;
+	  etm_can_magnetron_current_mirror.magmon_pulses_lifetime <<= 16;
+	  etm_can_magnetron_current_mirror.magmon_pulses_lifetime += next_message.word1;
+	  etm_can_magnetron_current_mirror.magmon_pulses_lifetime <<= 16;
+	  etm_can_magnetron_current_mirror.magmon_pulses_lifetime += next_message.word0;
+	  break;
+
+
+	case ETM_CAN_DATA_LOG_REGISTER_COOLING_SLOW_FLOW_0:
+	  etm_can_cooling_mirror.cool_readback_hvps_coolant_flow = next_message.word3;
+	  etm_can_cooling_mirror.cool_readback_magnetron_coolant_flow = next_message.word2;
+	  etm_can_cooling_mirror.cool_readback_linac_coolant_flow = next_message.word1;
+	  etm_can_cooling_mirror.cool_readback_circulator_coolant_flow = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_COOLING_SLOW_FLOW_1:
+	  etm_can_cooling_mirror.cool_readback_spare_word_1 = next_message.word3;
+	  etm_can_cooling_mirror.cool_readback_spare_word_0 = next_message.word2;
+	  etm_can_cooling_mirror.cool_readback_hx_coolant_flow = next_message.word1;
+	  etm_can_cooling_mirror.cool_readback_spare_coolant_flow = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_COOLING_SLOW_ANALOG_READINGS:
+	  etm_can_cooling_mirror.cool_readback_coolant_temperature = next_message.word3;
+	  etm_can_cooling_mirror.cool_readback_sf6_pressure = next_message.word2;
+	  etm_can_cooling_mirror.cool_readback_cabinet_temperature = next_message.word1;
+	  etm_can_cooling_mirror.cool_readback_linac_temperature = next_message.word0;
+	  break;
+
+
+	case ETM_CAN_DATA_LOG_REGISTER_HEATER_MAGNET_SLOW_READINGS:
+	  etm_can_heater_magnet_mirror.htrmag_readback_heater_current = next_message.word3;
+	  etm_can_heater_magnet_mirror.htrmag_readback_heater_voltage = next_message.word2;
+	  etm_can_heater_magnet_mirror.htrmag_readback_magnet_current = next_message.word1;
+	  etm_can_heater_magnet_mirror.htrmag_readback_magnet_voltage = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_HEATER_MAGNET_SLOW_SET_POINTS:
+	  etm_can_heater_magnet_mirror.htrmag_readback_heater_current_set_point = next_message.word3;
+	  etm_can_heater_magnet_mirror.htrmag_readback_heater_voltage_set_point = next_message.word2;
+	  etm_can_heater_magnet_mirror.htrmag_readback_magnet_current_set_point = next_message.word1;
+	  etm_can_heater_magnet_mirror.htrmag_readback_magnet_voltage_set_point = next_message.word0;
+	  break;
+
+
+	case ETM_CAN_DATA_LOG_REGISTER_GUN_DRIVER_SLOW_PULSE_TOP_MON:
+	  etm_can_gun_driver_mirror.gun_readback_high_energy_pulse_top_voltage_monitor = next_message.word3;
+	  etm_can_gun_driver_mirror.gun_readback_low_energy_pulse_top_voltage_monitor = next_message.word2;
+	  etm_can_gun_driver_mirror.gun_readback_cathode_voltage_monitor = next_message.word1;
+	  etm_can_gun_driver_mirror.gun_readback_peak_beam_current = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_GUN_DRIVER_SLOW_HEATER_MON:
+	  etm_can_gun_driver_mirror.gun_readback_heater_voltage_monitor = next_message.word3;
+	  etm_can_gun_driver_mirror.gun_readback_heater_current_monitor = next_message.word2;
+	  etm_can_gun_driver_mirror.gun_readback_heater_time_delay_remaining = next_message.word1;
+	  etm_can_gun_driver_mirror.gun_readback_driver_temperature = next_message.word0;
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_GUN_DRIVER_SLOW_SET_POINTS:
+	  etm_can_gun_driver_mirror.gun_readback_high_energy_pulse_top_set_point = next_message.word3;
+	  etm_can_gun_driver_mirror.gun_readback_low_energy_pulse_top_set_point = next_message.word2;
+	  etm_can_gun_driver_mirror.gun_readback_heater_voltage_set_point = next_message.word1;
+	  etm_can_gun_driver_mirror.gun_readback_cathode_voltage_set_point = next_message.word0;
+	  break;
+
+
+	case ETM_CAN_DATA_LOG_REGISTER_PULSE_SYNC_FAST_TRIGGER_DATA:
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_PULSE_SYNC_SLOW_TIMING_DATA_0:
+	  // DPARKER these are special because they need to be broken down into byte
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_PULSE_SYNC_SLOW_TIMING_DATA_1:
+	  // DPARKER these are special because they need to be broken down into byte
+	  break;
+
+	case ETM_CAN_DATA_LOG_REGISTER_PULSE_SYNC_SLOW_TIMING_DATA_2:
+	  // DPARKER these are special because they need to be broken down into byte
+	  break;
+
+	default:
+	  //DPARKER add some error
+	  break;
+	}
+    }
+  }
+}
+
+
+
+void ETMCanUpdateStatusBoardSpecific(ETMCanMessage* message_ptr) {
+  unsigned int source_board;
+  source_board = (message_ptr->identifier >> 3);
+  source_board &= 0x000F;
+  switch (source_board) {
+    /*
+      Place all board specific status updates here
+    */
+
+  case ETM_CAN_ADDR_ION_PUMP_BOARD:
+    etm_can_ion_pump_mirror.status_data.status_word_0 = message_ptr->word0;
+    etm_can_ion_pump_mirror.status_data.status_word_1 = message_ptr->word1;
+    etm_can_ion_pump_mirror.status_data.data_word_A   = message_ptr->word2;
+    etm_can_ion_pump_mirror.status_data.data_word_B   = message_ptr->word3;
+    etm_can_ethernet_board_data.status_received_register |= ETM_CAN_BIT_ION_PUMP_BOARD;
+    ClrWdt();
+    break;
+
+  case ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD:
+    etm_can_magnetron_current_mirror.status_data.status_word_0 = message_ptr->word0;
+    etm_can_magnetron_current_mirror.status_data.status_word_1 = message_ptr->word1;
+    etm_can_magnetron_current_mirror.status_data.data_word_A   = message_ptr->word2;
+    etm_can_magnetron_current_mirror.status_data.data_word_B   = message_ptr->word3;
+    etm_can_ethernet_board_data.status_received_register |= ETM_CAN_BIT_MAGNETRON_CURRENT_BOARD;
+    ClrWdt();
+    break;
+
+  case ETM_CAN_ADDR_PULSE_SYNC_BOARD:
+    etm_can_pulse_sync_mirror.status_data.status_word_0 = message_ptr->word0;
+    etm_can_pulse_sync_mirror.status_data.status_word_1 = message_ptr->word1;
+    etm_can_pulse_sync_mirror.status_data.data_word_A   = message_ptr->word2;
+    etm_can_pulse_sync_mirror.status_data.data_word_B   = message_ptr->word3;
+    etm_can_ethernet_board_data.status_received_register |= ETM_CAN_BIT_PULSE_SYNC_BOARD;
+    ClrWdt();
+    break;
+
+  case ETM_CAN_ADDR_HV_LAMBDA_BOARD:
+    etm_can_hv_lamdba_mirror.status_data.status_word_0 = message_ptr->word0;
+    etm_can_hv_lamdba_mirror.status_data.status_word_1 = message_ptr->word1;
+    etm_can_hv_lamdba_mirror.status_data.data_word_A   = message_ptr->word2;
+    etm_can_hv_lamdba_mirror.status_data.data_word_B   = message_ptr->word3;
+    etm_can_ethernet_board_data.status_received_register |= ETM_CAN_BIT_HV_LAMBDA_BOARD;
+    ClrWdt();
+    break;
+
+  case ETM_CAN_ADDR_AFC_CONTROL_BOARD:
+    etm_can_afc_mirror.status_data.status_word_0 = message_ptr->word0;
+    etm_can_afc_mirror.status_data.status_word_1 = message_ptr->word1;
+    etm_can_afc_mirror.status_data.data_word_A   = message_ptr->word2;
+    etm_can_afc_mirror.status_data.data_word_B   = message_ptr->word3;
+    etm_can_ethernet_board_data.status_received_register |= ETM_CAN_BIT_AFC_CONTROL_BOARD;
+    ClrWdt();
+    break;
+    
+  case ETM_CAN_ADDR_COOLING_INTERFACE_BOARD:
+    etm_can_cooling_mirror.status_data.status_word_0 = message_ptr->word0;
+    etm_can_cooling_mirror.status_data.status_word_1 = message_ptr->word1;
+    etm_can_cooling_mirror.status_data.data_word_A   = message_ptr->word2;
+    etm_can_cooling_mirror.status_data.data_word_B   = message_ptr->word3;
+    etm_can_ethernet_board_data.status_received_register |= ETM_CAN_BIT_COOLING_INTERFACE_BOARD;
+    ClrWdt();
+    break;
+
+  case ETM_CAN_ADDR_HEATER_MAGNET_BOARD:
+    etm_can_heater_magnet_mirror.status_data.status_word_0 = message_ptr->word0;
+    etm_can_heater_magnet_mirror.status_data.status_word_1 = message_ptr->word1;
+    etm_can_heater_magnet_mirror.status_data.data_word_A   = message_ptr->word2;
+    etm_can_heater_magnet_mirror.status_data.data_word_B   = message_ptr->word3;
+    etm_can_ethernet_board_data.status_received_register |= ETM_CAN_BIT_HEATER_MAGNET_BOARD;
+    ClrWdt();
+    break;
+
+  case ETM_CAN_ADDR_GUN_DRIVER_BOARD:
+    etm_can_gun_driver_mirror.status_data.status_word_0 = message_ptr->word0;
+    etm_can_gun_driver_mirror.status_data.status_word_1 = message_ptr->word1;
+    etm_can_gun_driver_mirror.status_data.data_word_A   = message_ptr->word2;
+    etm_can_gun_driver_mirror.status_data.data_word_B   = message_ptr->word3;
+    etm_can_ethernet_board_data.status_received_register |= ETM_CAN_BIT_GUN_DRIVER_BOARD;
+    ClrWdt();
+    break;
+
+
+  default:
+    etm_can_can_status.can_status_address_error++;
+    break;
+  }
+  if ((etm_can_ethernet_board_data.status_received_register & ETM_CAN_BIT_ALL_ACTIVE_SLAVE_BOARDS) == ETM_CAN_BIT_ALL_ACTIVE_SLAVE_BOARDS) {
+    // A status update has been received from all boards
+    TMR3 = 0;
+    etm_can_ethernet_board_data.status_received_register = 0x0000;
+  } 
+
+}
+
+
+#endif
 
