@@ -221,6 +221,11 @@ void ETMCanMasterStandardCommunication(void) {
       case 0x0:
 	// Send Sync Command (this is on TX1)
 	ETMCanSendSync(0,0,0,0);
+	if (_LATA7) {
+	  _LATA7 = 0;
+	} else {
+	  _LATA7 = 1;
+	}
 	break;
 
       case 0x1:
@@ -543,7 +548,7 @@ void ETMCanDoSlaveLog(void) {
     switch (etm_can_default_transmit_counter) 
       {
       case 0x0:
-	ETMCanLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_ERROR_0, etm_can_system_debug_data.i2c_bus_error_count, etm_can_system_debug_data.spi_bus_error_count, etm_can_system_debug_data.can_bus_error_count, etm_can_system_debug_data.scale_error_count);      
+	ETMCanLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_ERROR_0, etm_can_system_debug_data.i2c_bus_error_count, etm_can_system_debug_data.spi_bus_error_count, etm_can_system_debug_data.can_bus_error_count, etm_can_system_debug_data.scale_error_count);
 	break;
 	
       case 0x1:

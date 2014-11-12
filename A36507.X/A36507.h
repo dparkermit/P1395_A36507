@@ -3,7 +3,6 @@
 
 #include <p30f6014a.h>
 #include <libpic30.h>
-#include "FIRMWARE_REV_A36507.h"
 
 
 
