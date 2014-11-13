@@ -1,5 +1,5 @@
 #include "ETM_CAN.h"
-
+#include "ETM_CAN_FIRMWARE_VERSION.h"
 
 void ETMCanCheckForStatusChange(void);
 
@@ -81,7 +81,7 @@ void ETMCanCheckForTimeOut(void) {
   if (_T3IF) {
     _T3IF = 0;
     etm_can_can_status.can_status_timeout++;
-    etm_can_status_register.status_word_1 |= ETM_CAN_STATUS_WORD_1_FAULT_CAN_BUS;
+    etm_can_status_register.status_word_1 |= FAULT_BIT_CAN_BUS_TIMEOUT;
   }
 }
 
@@ -178,7 +178,8 @@ void ETMCanSetValue(ETMCanMessage* message_ptr) {
 
 
 #ifdef __ETM_CAN_MASTER_MODULE
-// DPARKER move these commands to ETM_CAN_A36507
+// DPARKER move these commands to ETM_CAN_MASTER
+// DPARKER create a master C and H file and move configuration there
 
 
 void ETMCanSetValueCalibrationUpload(ETMCanMessage* message_ptr) {
@@ -221,11 +222,6 @@ void ETMCanMasterStandardCommunication(void) {
       case 0x0:
 	// Send Sync Command (this is on TX1)
 	ETMCanSendSync(0,0,0,0);
-	if (_LATA7) {
-	  _LATA7 = 0;
-	} else {
-	  _LATA7 = 1;
-	}
 	break;
 
       case 0x1:
@@ -350,6 +346,7 @@ void ETMCanMasterGunDriverUpdatePulseTop(void) {
 }
 
 #else
+// ------------------------- These are all slave board functions -------------------------- //
 
 
 void ETMCanCheckForStatusChange(void) {
@@ -370,19 +367,18 @@ void ETMCanCheckForStatusChange(void) {
 void ETMCanUpdateFaultAndInhibitBits(void) {
   // Update the Fault bit
   // The individual Fault bits are latched but not the Sum Fault bit
-  if (etm_can_status_register.status_word_1 & ETM_CAN_FAULT_MASK) {
-    etm_can_status_register.status_word_0 |= ETM_CAN_STATUS_WORD_0_SUM_FAULT;  // Set the Fault Bit
+  if (etm_can_status_register.status_word_1 & etm_can_status_register.status_word_1_fault_mask) {
+    etm_can_status_register.status_word_0 |= STATUS_BIT_SUM_FAULT;  // Set the Fault Bit
   } else {
-    etm_can_status_register.status_word_0 &= !ETM_CAN_STATUS_WORD_0_SUM_FAULT;  // Clear the Fault Bit
+    etm_can_status_register.status_word_0 &= ~STATUS_BIT_SUM_FAULT;  // Clear the Fault Bit
   }
   
   // Update the Inhibit bit
-  if (etm_can_status_register.status_word_0 & ETM_CAN_INHIBIT_MASK) {
-    etm_can_status_register.status_word_0 |= ETM_CAN_STATUS_WORD_0_PULSE_INHIBITED;  // Set the Inhibit Bit
+  if (etm_can_status_register.status_word_0 & etm_can_status_register.status_word_0_inhbit_mask) {
+    etm_can_status_register.status_word_0 |= STATUS_BIT_PULSE_INHIBITED;  // Set the Inhibit Bit
   } else {
-    etm_can_status_register.status_word_0 &= !ETM_CAN_STATUS_WORD_0_PULSE_INHIBITED;  // Clear the Inhibit Bit
+    etm_can_status_register.status_word_0 &= ~STATUS_BIT_PULSE_INHIBITED;  // Clear the Inhibit Bit
   }
-  
 }
 
 void ETMCanExecuteCMD(ETMCanMessage* message_ptr) {
@@ -420,25 +416,16 @@ void ETMCanExecuteCMDDefault(ETMCanMessage* message_ptr) {
     __asm__ ("Reset");
     break;
 
-    /*
-    // DPARKER this command has been removed because the configuration is constantly sent so this command is no longer needed
-    case ETM_CAN_REGISTER_DEFAULT_CMD_RESEND_CONFIG:
-    //ETMCanLogConfig();
-    
-    break;
-    */
-
-
   case ETM_CAN_REGISTER_DEFAULT_CMD_WRITE_EEPROM_PAGE:
     // DPARKER implement this
     break;
  
   case ETM_CAN_REGISTER_DEFAULT_CMD_DISABLE_HIGH_SPEED_DATA_LOGGING:
-    etm_can_status_register.status_word_0 &= !ETM_CAN_STATUS_WORD_0_HIGH_SPEED_LOGGING_ENABLED;  // Clear the bit
+    etm_can_status_register.status_word_0 &= ~STATUS_BIT_HIGH_SPEED_LOGGING_ENABLED;  // Clear the bit
     break;
 
   case ETM_CAN_REGISTER_DEFAULT_CMD_ENABLE_HIGH_SPEED_DATA_LOGGING:
-    etm_can_status_register.status_word_0 |= ETM_CAN_STATUS_WORD_0_HIGH_SPEED_LOGGING_ENABLED;  // Set the bit
+    etm_can_status_register.status_word_0 |= STATUS_BIT_HIGH_SPEED_LOGGING_ENABLED;  // Set the bit
     break;
    
   default:
@@ -548,7 +535,7 @@ void ETMCanDoSlaveLog(void) {
     switch (etm_can_default_transmit_counter) 
       {
       case 0x0:
-	ETMCanLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_ERROR_0, etm_can_system_debug_data.i2c_bus_error_count, etm_can_system_debug_data.spi_bus_error_count, etm_can_system_debug_data.can_bus_error_count, etm_can_system_debug_data.scale_error_count);
+	ETMCanLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_ERROR_0, etm_can_system_debug_data.i2c_bus_error_count, etm_can_system_debug_data.spi_bus_error_count, etm_can_system_debug_data.can_bus_error_count, etm_can_system_debug_data.scale_error_count);      
 	break;
 	
       case 0x1:
@@ -751,8 +738,6 @@ void ETMCanInitialize(void) {
 
 
 
-  // DPARKER please use #defines on all the timers and have it check the FCY so that it uses the appropriate timer value
-
   // Configure T2
   T2CON = T2CON_VALUE;
   PR2 = PR2_VALUE;  
@@ -769,17 +754,20 @@ void ETMCanInitialize(void) {
   T3CONbits.TON = 1;
 
   // DPARKER read configuration from on chip FLASH!!!  // This will be set when the device is programmed as soon as I figure out how to do that.
+  // DPARKER add this to chip memory
   etm_can_my_configuration.agile_number_high_word = 0;
   etm_can_my_configuration.agile_number_low_word  = 36224;
   etm_can_my_configuration.agile_dash             = 500;
   etm_can_my_configuration.agile_rev_ascii        = 'A';
   etm_can_my_configuration.serial_number          = 201;
   
-  // DPARKER Firmware version data should be stored in H File
-  //etm_can_my_configuration.firmware_branch        = FIRMWARE_BRANCH_A36444;
-  //etm_can_my_configuration.firmware_major_rev     = FIRMWARE_MAJOR_REV_A36444;
-  //etm_can_my_configuration.firmware_minor_rev     = FIRMWARE_MINOR_REV_A36444;
+  // Firmware version data should be stored in the H File ETM_CAN_FIRMWARE_VERSION
+  etm_can_my_configuration.firmware_major_rev     = FIRMWARE_AGILE_REV;
+  etm_can_my_configuration.firmware_branch        = FIRMWARE_BRANCH;
+  etm_can_my_configuration.firmware_minor_rev     = FIRMWARE_MINOR_REV;
   
+  
+
 }
 
 
@@ -806,7 +794,6 @@ void __attribute__((interrupt, no_auto_psv)) _CXInterrupt(void) {
       etm_can_can_status.can_status_rx_0_filt_0++;
       // It is a Next Pulse Level Command
       ETMCanRXMessage(&can_message, &CXRX0CON);
-      // DPARKER set next pulse level to data
       etm_can_next_pulse_level = can_message.word2;
       etm_can_next_pulse_count = can_message.word3;
     } else {
@@ -851,7 +838,7 @@ void __attribute__((interrupt, no_auto_psv)) _CXInterrupt(void) {
 	}
       } else {
 	// Clear the fault bit for this board address
-	etm_can_ethernet_board_data.fault_status_bits &= !msg_address;
+	etm_can_ethernet_board_data.fault_status_bits &= ~msg_address;
       }
 
       if (CXRX1B1 & 0x0002) {
@@ -862,7 +849,7 @@ void __attribute__((interrupt, no_auto_psv)) _CXInterrupt(void) {
 	}
       } else {
 	// Clear the inibit status bit for this board address
-	etm_can_ethernet_board_data.pulse_inhibit_status_bits &= !msg_address;
+	etm_can_ethernet_board_data.pulse_inhibit_status_bits &= ~msg_address;
       }
     }
 #endif
@@ -887,6 +874,13 @@ void __attribute__((interrupt, no_auto_psv)) _CXInterrupt(void) {
     // DPARKER - figure out which error and fix/reset
     etm_can_can_status.can_status_error_flag++;
     CXINTFbits.ERRIF = 0;
+  } else {
+    // FLASH THE CAN LED
+    if (PIN_CAN_OPERATION_LED) {
+      PIN_CAN_OPERATION_LED = 0;
+    } else {
+      PIN_CAN_OPERATION_LED = 1;
+    }
   }
 
   etm_can_can_status.can_status_CXEC_reg = CXEC;
@@ -912,7 +906,6 @@ ETMCanRamMirrorMagnetronCurrent  etm_can_magnetron_current_mirror;
 ETMCanRamMirrorPulseSync         etm_can_pulse_sync_mirror;
 
 ETMCanHighSpeedData              etm_can_high_speed_data_test;
-
 
 
 

@@ -1,6 +1,8 @@
 #include "A36507.h"
 #include "ETM_CAN_PUBLIC.h"
 
+#include "ETM_CAN.h"
+
 /*
   Modules to be created
 
@@ -35,6 +37,9 @@ int main(void) {
   
 
   
+  etm_can_heater_magnet_mirror.htrmag_heater_current_set_point = 5000;
+  etm_can_heater_magnet_mirror.htrmag_magnet_current_set_point = 10000;
+  
   while (1) {
     ETMCanDoCan();
     
@@ -45,4 +50,5 @@ int main(void) {
 
 void InitializeA36507(void) {
   _TRISA7 = 0;
+  _TRISG13 = 0;
 }

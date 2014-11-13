@@ -181,6 +181,20 @@ unsigned int ETMCanBufferNotEmpty(ETMCanMessageBuffer* buffer_ptr);
 #define CXCFG1_20MHZ_FCY_VALUE                   0b0000000000000011      // This sets TQ to 8/Fcan
 #define CXCFG1_25MHZ_FCY_VALUE                   0b0000000000000100      // This sets TQ to 10/Fcan
 
+
+#if FCY_CLK == 25000000
+#define ETM_CAN_CXCFG1_VALUE                CXCFG1_25MHZ_FCY_VALUE
+#elif FCY_CLK == 20000000
+#define ETM_CAN_CXCFG1_VALUE                CXCFG1_20MHZ_FCY_VALUE
+#elif FCY_CLK == 10000000
+#define ETM_CAN_CXCFG1_VALUE                CXCFG1_10MHZ_FCY_VALUE
+#else
+#define ETM_CAN_CXCFG1_VALUE                COMPILE_ERROR_YOU_SHOULD_FIX_THIS
+#endif
+
+
+
+
 #define CXCFG2_VALUE                             0b0000001110010001      // This will created a bit timing of 10x TQ
 
 #define CXTXXCON_VALUE_HIGH_PRIORITY             0b0000000000000011
@@ -259,12 +273,6 @@ void ETMCanResetFaults(void);
 void ETMCanLogData(unsigned int packet_id, unsigned int word3, unsigned int word2, unsigned int word1, unsigned int word0);
 void ETMCanExecuteCMDBoardSpecific(ETMCanMessage* message_ptr);
 void ETMCanReturnValueBoardSpecific(ETMCanMessage* message_ptr);
-
-void ETMCanLogCustomPacketC(void);
-void ETMCanLogCustomPacketD(void);
-void ETMCanLogCustomPacketE(void);
-void ETMCanLogCustomPacketF(void);
-
 #endif
 
 //------------------------------- Specific Board and Command Defines -------------------------- // 
@@ -470,47 +478,7 @@ void ETMCanLogCustomPacketF(void);
 #define ETM_CAN_DATA_LOG_REGISTER_PULSE_SYNC_SLOW_TIMING_DATA_2         0x3F
 
 
-// ------------------- STATUS REGISTER --------------------------//
 
-#define ETM_CAN_STATUS_WORD_0_SUM_FAULT                       0b0000000000000001
-#define ETM_CAN_STATUS_WORD_0_PULSE_INHIBITED                 0b0000000000000010
-#define ETM_CAN_STATUS_WORD_0_BOARD_WAITING_INITIAL_CONFIG    0b0000000000000100
-#define ETM_CAN_STATUS_WORD_0_BOARD_SELF_CHECK_FAILED         0b0000000000001000
-#define ETM_CAN_STATUS_WORD_0_HIGH_SPEED_LOGGING_ENABLED      0b0000000000010000
-#define ETM_CAN_STATUS_WORD_0_STATUS_UNUSED_1                 0b0000000000100000
-#define ETM_CAN_STATUS_WORD_0_STATUS_UNUSED_2                 0b0000000001000000
-#define ETM_CAN_STATUS_WORD_0_STATUS_UNUSED_3                 0b0000000010000000
-
-#define ETM_CAN_STATUS_WORD_0_USER_DEFINED_8                  0b0000000100000000
-#define ETM_CAN_STATUS_WORD_0_USER_DEFINED_9                  0b0000001000000000
-#define ETM_CAN_STATUS_WORD_0_USER_DEFINED_10                 0b0000010000000000
-#define ETM_CAN_STATUS_WORD_0_USER_DEFINED_11                 0b0000100000000000
-#define ETM_CAN_STATUS_WORD_0_USER_DEFINED_12                 0b0001000000000000
-#define ETM_CAN_STATUS_WORD_0_USER_DEFINED_13                 0b0010000000000000
-#define ETM_CAN_STATUS_WORD_0_USER_DEFINED_14                 0b0100000000000000
-#define ETM_CAN_STATUS_WORD_0_USER_DEFINED_15                 0b1000000000000000
-
-
-
-// ----------------- FAULT/WARNING Register --------------------------//
-
-#define ETM_CAN_STATUS_WORD_1_FAULT_CAN_BUS                   0b0000000000000001
-#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_1            0b0000000000000010
-#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_2            0b0000000000000100
-#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_3            0b0000000000001000
-#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_4            0b0000000000010000
-#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_5            0b0000000000100000
-#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_6            0b0000000001000000
-#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_7            0b0000000010000000
-
-#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_8            0b0000000100000000
-#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_9            0b0000001000000000
-#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_10           0b0000010000000000
-#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_11           0b0000100000000000
-#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_12           0b0001000000000000
-#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_13           0b0010000000000000
-#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_14           0b0100000000000000
-#define ETM_CAN_STATUS_WORD_1_FAULT_USER_DEFINED_15           0b1000000000000000
 
 
 

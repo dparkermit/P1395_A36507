@@ -16,8 +16,8 @@ void ETMCanSetValueBoardSpecific(ETMCanMessage* message_ptr) {
 
 #ifdef __A36224_500
   case ETM_CAN_REGISTER_HEATER_MAGNET_SET_1_CURRENT_SET_POINT:
-    global_data_A36224_500.heater_current_set_point = message_ptr->word1;
-    global_data_A36224_500.magnet_current_set_point = message_ptr->word1;
+    global_data_A36224_500.analog_output_heater_current.set_point = message_ptr->word1;
+    global_data_A36224_500.analog_output_electromagnet_current.set_point = message_ptr->word0;
     break;
 
 #endif
@@ -52,11 +52,11 @@ void ETMCanExecuteCMDBoardSpecific(ETMCanMessage* message_ptr) {
       */
 #ifdef __A36224_500
     case ETM_CAN_REGISTER_HEATER_MAGNET_CMD_OUTPUT_ENABLE:
-      etm_can_status_register.status_word_0 &= !STATUS_SOFTWARE_DISABLE;  // Clear the software disable bit 
+      etm_can_status_register.status_word_0 &= ~STATUS_BIT_SOFTWARE_DISABLE;  // Clear the software disable bit 
     break;
     
     case ETM_CAN_REGISTER_HEATER_MAGNET_CMD_OUTPUT_DISABLE:
-      etm_can_status_register.status_word_0 |= STATUS_SOFTWARE_DISABLE; // Set the software disable bit
+      etm_can_status_register.status_word_0 |= STATUS_BIT_SOFTWARE_DISABLE; // Set the software disable bit
     break;
 #endif
     
@@ -111,7 +111,18 @@ void ETMCanLogCustomPacketC(void) {
      Use this to log Board specific data packet
      This will get executed once per update cycle (1.6 seconds) and will be spaced out in time from the other log data
   */
-  ETMCanLogData(ETM_CAN_DATA_LOG_REGISTER_HV_LAMBDA_FAST_PROGRAM_VOLTAGE, 0, 18000, 14000, 17950);
+#ifdef __A36224_500
+  ETMCanLogData(
+		ETM_CAN_DATA_LOG_REGISTER_HEATER_MAGNET_SLOW_READINGS, 
+		global_data_A36224_500.analog_input_heater_current.reading_scaled_and_calibrated,
+		global_data_A36224_500.analog_input_heater_voltage.reading_scaled_and_calibrated,
+		global_data_A36224_500.analog_input_electromagnet_current.reading_scaled_and_calibrated,
+		global_data_A36224_500.analog_input_electromagnet_voltage.reading_scaled_and_calibrated
+		);
+#endif
+
+
+
 }
 
 void ETMCanLogCustomPacketD(void) {
@@ -119,7 +130,16 @@ void ETMCanLogCustomPacketD(void) {
      Use this to log Board specific data packet
      This will get executed once per update cycle (1.6 seconds) and will be spaced out in time from the other log data
   */
-  ETMCanLogData(ETM_CAN_DATA_LOG_REGISTER_HV_LAMBDA_SLOW_SET_POINT, 0, 18000, 14000, 17950);
+#ifdef __A36224_500
+  ETMCanLogData(
+		ETM_CAN_DATA_LOG_REGISTER_HEATER_MAGNET_SLOW_SET_POINTS, 
+		global_data_A36224_500.analog_output_heater_current.set_point,
+		0,
+		global_data_A36224_500.analog_output_electromagnet_current.set_point,
+		0
+		);
+#endif
+
 }
 
 void ETMCanLogCustomPacketE(void) {
