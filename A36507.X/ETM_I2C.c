@@ -18,23 +18,21 @@ unsigned int etm_i2c2_error_count = 0;
 
 unsigned int etm_i2c_loop_timeout;
 
+
 void ConfigureI2C(unsigned char i2c_port, unsigned int configuration, unsigned long baud_rate, unsigned long fcy_clk, unsigned long pulse_gobbler_delay_fcy) {
-
   unsigned long baud_rate_register;
+
   
-  baud_rate_register = (fcy_clk*8)/baud_rate;
-
-
-  etm_i2c_loop_timeout = baud_rate_register;
+  baud_rate_register = fcy_clk/baud_rate;
+  etm_i2c_loop_timeout = baud_rate_register * 16;
   /*
-    The loop timeout is not ~equal to the number of clock cycles it takes to clock out a byte.
-    Each loop takes at least 10 clock cycles to loop.
-    So dived the number above by 2 should give plenty of margin for error
+    Each Loop that gets timed is at least 10 clock cycles.
+    That means our timeout is at least 10*16 I2C Clocks = 160 I2C Clocks.
   */
-  etm_i2c_loop_timeout >>= 1;
+  // DPARKER this is probably too long
 
-  baud_rate_register -= 8*pulse_gobbler_delay_fcy;
-  baud_rate_register >>= 3;
+
+  baud_rate_register -= fcy_clk/PULSE_GOBBLER_DELAY_HZ;
   baud_rate_register -= 1;
 
 #if defined(__dsPIC33F__)
@@ -470,7 +468,7 @@ unsigned int GenerateI2CStop(unsigned char i2c_port) {
     I2C2CONbits.PEN = 1;		                 //Generate stop COndition
     //Wait for Stop COndition or Timeout
     loop_counter = 0;
-    while (I2C1CONbits.PEN) {
+    while (I2C2CONbits.PEN) {
       loop_counter++;
       if (loop_counter > etm_i2c_loop_timeout) {
 	i2c_result = 0xFA00;
@@ -484,4 +482,110 @@ unsigned int GenerateI2CStop(unsigned char i2c_port) {
   return i2c_result;
 }
 
+unsigned int GenerateACK(unsigned char i2c_port) {
+    unsigned int loop_counter;
+    unsigned int ret;
+    loop_counter = 0;
+    ret = 0;
 
+#if defined(_I2CMD)
+    if ((i2c_port == 0) || (i2c_port == 1)) {
+        I2CCONbits.ACKDT = 0;   //ACK
+        I2CCONbits.ACKEN = 1;
+        while (I2CCONbits.ACKEN) {
+        loop_counter++;
+        if (loop_counter > etm_i2c_loop_timeout) {
+            ret = 0xFA00;
+            etm_i2c1_error_count++;
+            break;
+          }
+        }
+    }
+#endif
+
+#if defined(_I2C1MD)
+    if ((i2c_port == 1) {
+        I2C1CONbits.ACKDT = 0;   //ACK
+        I2C1CONbits.ACKEN = 1;
+        while (I2C1CONbits.ACKEN) {
+        loop_counter++;
+        if (loop_counter > etm_i2c_loop_timeout) {
+            ret = 0xFA00;
+            etm_i2c1_error_count++;
+            break;
+          }
+        }
+    }
+#endif
+
+#if defined(_I2C2MD)
+    if ((i2c_port == 2) {
+        I2C2CONbits.ACKDT = 0;   //ACK
+        I2C2CONbits.ACKEN = 1;
+        while (I2C2CONbits.ACKEN) {
+        loop_counter++;
+        if (loop_counter > etm_i2c_loop_timeout) {
+            ret = 0xFA00;
+            etm_i2c1_error_count++;
+            break;
+          }
+        }
+    }
+#endif
+
+    return ret;
+}
+
+unsigned int GenerateNACK(unsigned char i2c_port) {
+    unsigned int loop_counter;
+    unsigned int ret;
+    loop_counter = 0;
+    ret = 0;
+
+#if defined(_I2CMD)
+    if ((i2c_port == 0) || (i2c_port == 1)) {
+        I2CCONbits.ACKDT = 1;   //NACK
+        I2CCONbits.ACKEN = 1;
+        while (I2CCONbits.ACKEN) {
+        loop_counter++;
+        if (loop_counter > etm_i2c_loop_timeout) {
+            ret = 0xFA00;
+            etm_i2c1_error_count++;
+            break;
+          }
+        }
+    }
+#endif
+
+#if defined(_I2C1MD)
+    if ((i2c_port == 0) || (i2c_port == 1)) {
+        I2C1CONbits.ACKDT = 1;   //NACK
+        I2C1CONbits.ACKEN = 1;
+        while (I2C1CONbits.ACKEN) {
+        loop_counter++;
+        if (loop_counter > etm_i2c_loop_timeout) {
+            ret = 0xFA00;
+            etm_i2c1_error_count++;
+            break;
+          }
+        }
+    }
+#endif
+
+#if defined(_I2C2MD)
+    if ((i2c_port == 0) || (i2c_port == 1)) {
+        I2C2CONbits.ACKDT = 1;   //NACK
+        I2C2CONbits.ACKEN = 1;
+        while (I2C2CONbits.ACKEN) {
+        loop_counter++;
+        if (loop_counter > etm_i2c_loop_timeout) {
+            ret = 0xFA00;
+            etm_i2c1_error_count++;
+            break;
+          }
+        }
+    }
+#endif
+
+    return ret;
+}

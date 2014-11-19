@@ -23,13 +23,16 @@
 #define I2C_WRITE_CONTROL_BIT   0b00000000
 #define I2C_READ_CONTROL_BIT    0b00000001
 
+#define ETM_I2C_400K_BAUD       400000
+#define ETM_I2C_100K_BAUD       100000
+
 
 void ConfigureI2C(unsigned char i2c_port, unsigned int configuration, unsigned long baud_rate, unsigned long fcy_clk, unsigned long pulse_gobbler_delay_fcy);
 /*
   This function sets up the selected i2c_port with the configuation parameter that is passed in.
   It also calculates the baud rate register based on the selected baud rate and the system clock.
-  pulse_gobbler_delay_fcy is the inverse of the pulse_gobbler_delay.  Good luck finding this on the data sheet
-  Typical values range from 100ns - 900ns
+
+  NOTE - pulse_gobbler_delay_fcy is no longer unused,  set it to zero (or any other value), it has not been removed to preserve compatability
 */
 
 
@@ -82,6 +85,24 @@ unsigned int GenerateI2CStop(unsigned char i2c_port);
   The result will be 0xFA00 if there is an I2C bus fault
 */
 
+unsigned int GenerateACK(unsigned char i2c_port);
+/*
+  This will generate a master ACK sequence
+
+  The result will be 0x0000 if everything works properly
+  The result will be 0xFA00 if there is an I2C bus fault
+*/
+#define GenerateI2CAck GenerateACK
+
+unsigned int GenerateNACK(unsigned char i2c_port);
+/*
+  This will generate a master NACK sequence
+
+  The result will be 0x0000 if everything works properly
+  The result will be 0xFA00 if there is an I2C bus fault
+*/
+#define GenerateI2CNack GenerateNACK
+
 
 #define I2C_PORT                 0
 #define I2C_PORT_1               1
@@ -92,5 +113,14 @@ extern unsigned int etm_i2c1_error_count; // This global variable counts the num
 #if defined(_I2C2MD)
 extern unsigned int etm_i2c2_error_count; // This global variable counts the number of i2c_errors.  It may be useful for code bebugging and validation
 #endif
+
+
+#ifdef __dsPIC30F6014A__
+#define PULSE_GOBBLER_DELAY_HZ 3333333
+#else
+#define PULSE_GOBBLER_DELAY_HZ 3333333
+#endif
+
+
 
 #endif
