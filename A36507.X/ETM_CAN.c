@@ -126,6 +126,18 @@ void ETMCanProcessMessage(void) {
 
 }
 
+void ETMCanSetBit(unsigned int* int_ptr, unsigned int bit_mask) {
+  *int_ptr = *int_ptr | bit_mask;
+}
+
+void ETMCanClearBit(unsigned int* int_ptr, unsigned int bit_mask) {
+  *int_ptr = *int_ptr & (~bit_mask);
+}
+
+unsigned int ETMCanCheckBit(unsigned int data, unsigned int bit_mask) {
+  return (data & bit_mask);
+}
+
 
 
 void ETMCanSetValue(ETMCanMessage* message_ptr) {

@@ -81,6 +81,12 @@ void ETMCanInitialize(void);
   This is called once when the processor starts up to initialize the can bus and all of the can variables
 */
 
+
+void ETMCanSetBit(unsigned int* int_ptr, unsigned int bit_mask);
+void ETMCanClearBit(unsigned int* int_ptr, unsigned int bit_mask);
+unsigned int ETMCanCheckBit(unsigned int data, unsigned int bit_mask);
+
+
 #ifndef __ETM_CAN_MASTER_MODULE
 void ETMCanLogCustomPacketC(void);
 void ETMCanLogCustomPacketD(void);
