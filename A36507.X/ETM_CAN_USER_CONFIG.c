@@ -5,6 +5,10 @@
 #endif
 
 
+#ifdef __A36444
+#include "A36444.h"
+#endif
+
 
 void ETMCanSetValueBoardSpecific(ETMCanMessage* message_ptr) {
   unsigned int index_word;
@@ -23,10 +27,10 @@ void ETMCanSetValueBoardSpecific(ETMCanMessage* message_ptr) {
 #endif
 
 
-#ifdef __A_WHATEVER_HV_LAMBDA_IS
+#ifdef __A36444
   case ETM_CAN_REGISTER_HV_LAMBDA_SET_1_LAMBDA_SET_POINT:
-    etm_can_status_register.data_word_A = message_ptr->word2;  // Low energy Program Voltage
-    etm_can_status_register.data_word_B = message_ptr->word1;  // High energy Program Voltage
+    global_data_A36444.analog_output_high_energy_vprog.set_point = message_ptr->word1;
+    global_data_A36444.analog_output_low_energy_vprog.set_point = message_ptr->word2;
     break;
 #endif
 
@@ -122,6 +126,16 @@ void ETMCanLogCustomPacketC(void) {
 #endif
 
 
+#ifdef __A36444
+  ETMCanLogData(
+		ETM_CAN_DATA_LOG_REGISTER_HV_LAMBDA_FAST_PROGRAM_VOLTAGE,
+		etm_can_next_pulse_count,
+		global_data_A36444.analog_output_high_energy_vprog.set_point,
+		global_data_A36444.analog_output_low_energy_vprog.set_point,
+		global_data_A36444.analog_input_lambda_vpeak.reading_scaled_and_calibrated
+		);
+#endif
+
 
 }
 
@@ -140,6 +154,17 @@ void ETMCanLogCustomPacketD(void) {
 		);
 #endif
 
+
+#ifdef __A36444
+  ETMCanLogData(
+		ETM_CAN_DATA_LOG_REGISTER_HV_LAMBDA_SLOW_SET_POINT,
+		global_data_A36444.eoc_not_reached_count,
+		global_data_A36444.analog_input_lambda_vmon.reading_scaled_and_calibrated,
+		global_data_A36444.analog_input_lambda_imon.reading_scaled_and_calibrated,
+		global_data_A36444.analog_input_lambda_heat_sink_temp.reading_scaled_and_calibrated
+		);
+#endif
+  
 }
 
 void ETMCanLogCustomPacketE(void) {

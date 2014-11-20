@@ -4,6 +4,15 @@
 
 #define __A36507
 
+#ifdef __A36444
+#define __USE_CAN_1
+#define FCY_CLK                             10000000      // 10 MHz
+#define FCY_CLK_MHZ                         10.000        // 10 MHz
+#define ETM_CAN_MY_ADDRESS                  ETM_CAN_ADDR_HV_LAMBDA_BOARD
+#define PIN_CAN_OPERATION_LED               _LATG13
+#define ETM_CAN_INTERRUPT_PRIORITY          4
+#endif
+
 
 
 #ifdef __A36224_500
