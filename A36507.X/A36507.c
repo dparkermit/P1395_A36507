@@ -5,6 +5,8 @@
 
 #include "ETM_EEPROM.h"
 
+#include "TCPmodbus/TCPmodbus.h"
+
 /*
   Modules to be created
 
@@ -16,7 +18,8 @@
   
 */
 _FOSC(ECIO_PLL16 & CSW_FSCM_OFF); 
-_FWDT(WDT_ON & WDTPSA_64 & WDTPSB_8);  // 1 Second watchdog timer 
+_FWDT(WDT_OFF);  // no watchdog timer 
+//_FWDT(WDT_ON & WDTPSA_64 & WDTPSB_8);  // 1 Second watchdog timer 
 _FBORPOR(PWRT_OFF & BORV_45 & PBOR_OFF & MCLR_EN);
 _FBS(WR_PROTECT_BOOT_OFF & NO_BOOT_CODE & NO_BOOT_EEPROM & NO_BOOT_RAM);
 _FSS(WR_PROT_SEC_OFF & NO_SEC_CODE & NO_SEC_EEPROM & NO_SEC_RAM);
@@ -52,7 +55,11 @@ void InitializeA36507(void);
 
 int main(void) {
   
+  TCPmodbus_init();
+
+  
   ETMCanInitialize();
+  
 
   InitializeA36507();
 
@@ -106,9 +113,13 @@ int main(void) {
   
   etm_can_heater_magnet_mirror.htrmag_heater_current_set_point = 5000;
   etm_can_heater_magnet_mirror.htrmag_magnet_current_set_point = 10000;
+
   
   while (1) {
+   
     ETMCanDoCan();
+    
+    TCPmodbus_task();
     
   }
 }
