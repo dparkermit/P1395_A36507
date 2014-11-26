@@ -98,78 +98,78 @@ static WORD         transaction_number_lo = 0;
 
   Remarks:
     None
-  ***************************************************************************/
+***************************************************************************/
 static void InitializeBoard(void)
 {    
-    // LEDs
-    LEDA_TRIS = 0;
-    LEDB_TRIS = 0;
-    LEDOP_TRIS = 0;
-    LED_PUT(0x00);
+  // LEDs
+  LEDA_TRIS = 0;
+  LEDB_TRIS = 0;
+  LEDOP_TRIS = 0;
+  LED_PUT(0x00);
     
-    #if defined(STACK_USE_UART)
-    UART2TX_ON_TRIS = 0;
-    UART2TX_ON_IO = 0;    // always disable TX1
+#if defined(STACK_USE_UART)
+  UART2TX_ON_TRIS = 0;
+  UART2TX_ON_IO = 0;    // always disable TX1
 
-    UART2TX_ON_TRIS = 0;
-    UART2TX_ON_IO = 1;    // always enable TX2
+  UART2TX_ON_TRIS = 0;
+  UART2TX_ON_IO = 1;    // always enable TX2
 
-    #endif
+#endif
 
-    // UART
-    #if defined(STACK_USE_UART)
+  // UART
+#if defined(STACK_USE_UART)
 
-        #if defined(__PIC24E__) || defined(__dsPIC33E__)
-            #if defined (ENC_CS_IO) || defined (WF_CS_IO)   // UART to be used in case of ENC28J60 or MRF24W
-                __builtin_write_OSCCONL(OSCCON & 0xbf);
-                RPOR9bits.RP101R = 3; //Map U2TX to RF5
-                RPINR19bits.U2RXR = 0;
-                RPINR19bits.U2RXR = 0x64; //Map U2RX to RF4
-                __builtin_write_OSCCONL(OSCCON | 0x40);
-            #endif
-            #if(ENC100_INTERFACE_MODE == 0)                 // UART to be used only in case of SPI interface with ENC624Jxxx
-                    __builtin_write_OSCCONL(OSCCON & 0xbf);
-                RPOR9bits.RP101R = 3; //Map U2TX to RF5
-                RPINR19bits.U2RXR = 0;
-                RPINR19bits.U2RXR = 0x64; //Map U2RX to RF4
-                __builtin_write_OSCCONL(OSCCON | 0x40);
+#if defined(__PIC24E__) || defined(__dsPIC33E__)
+#if defined (ENC_CS_IO) || defined (WF_CS_IO)   // UART to be used in case of ENC28J60 or MRF24W
+  __builtin_write_OSCCONL(OSCCON & 0xbf);
+  RPOR9bits.RP101R = 3; //Map U2TX to RF5
+  RPINR19bits.U2RXR = 0;
+  RPINR19bits.U2RXR = 0x64; //Map U2RX to RF4
+  __builtin_write_OSCCONL(OSCCON | 0x40);
+#endif
+#if(ENC100_INTERFACE_MODE == 0)                 // UART to be used only in case of SPI interface with ENC624Jxxx
+  __builtin_write_OSCCONL(OSCCON & 0xbf);
+  RPOR9bits.RP101R = 3; //Map U2TX to RF5
+  RPINR19bits.U2RXR = 0;
+  RPINR19bits.U2RXR = 0x64; //Map U2RX to RF4
+  __builtin_write_OSCCONL(OSCCON | 0x40);
 
-            #endif
-        #endif
+#endif
+#endif
 
-        UARTTX_TRIS = 0;
-        UARTRX_TRIS = 1;
-        UMODE = 0x8000;            // Set UARTEN.  Note: this must be done before setting UTXEN
+  UARTTX_TRIS = 0;
+  UARTRX_TRIS = 1;
+  UMODE = 0x8000;            // Set UARTEN.  Note: this must be done before setting UTXEN
 
-        #if defined(__C30__)
-            USTA = 0x0400;        // UTXEN set
-            #define CLOSEST_UBRG_VALUE ((GetPeripheralClock()+8ul*BAUD_RATE)/16/BAUD_RATE-1)
-            #define BAUD_ACTUAL (GetPeripheralClock()/16/(CLOSEST_UBRG_VALUE+1))
-        #else    //defined(__C32__)
-            USTA = 0x00001400;        // RXEN set, TXEN set
-            #define CLOSEST_UBRG_VALUE ((GetPeripheralClock()+8ul*BAUD_RATE)/16/BAUD_RATE-1)
-            #define BAUD_ACTUAL (GetPeripheralClock()/16/(CLOSEST_UBRG_VALUE+1))
-        #endif
+#if defined(__C30__)
+  USTA = 0x0400;        // UTXEN set
+#define CLOSEST_UBRG_VALUE ((GetPeripheralClock()+8ul*BAUD_RATE)/16/BAUD_RATE-1)
+#define BAUD_ACTUAL (GetPeripheralClock()/16/(CLOSEST_UBRG_VALUE+1))
+#else    //defined(__C32__)
+  USTA = 0x00001400;        // RXEN set, TXEN set
+#define CLOSEST_UBRG_VALUE ((GetPeripheralClock()+8ul*BAUD_RATE)/16/BAUD_RATE-1)
+#define BAUD_ACTUAL (GetPeripheralClock()/16/(CLOSEST_UBRG_VALUE+1))
+#endif
     
-        #define BAUD_ERROR ((BAUD_ACTUAL > BAUD_RATE) ? BAUD_ACTUAL-BAUD_RATE : BAUD_RATE-BAUD_ACTUAL)
-        #define BAUD_ERROR_PRECENT    ((BAUD_ERROR*100+BAUD_RATE/2)/BAUD_RATE)
-        #if (BAUD_ERROR_PRECENT > 3)
-            #warning UART frequency error is worse than 3%
-        #elif (BAUD_ERROR_PRECENT > 2)
-            #warning UART frequency error is worse than 2%
-        #endif
+#define BAUD_ERROR ((BAUD_ACTUAL > BAUD_RATE) ? BAUD_ACTUAL-BAUD_RATE : BAUD_RATE-BAUD_ACTUAL)
+#define BAUD_ERROR_PRECENT    ((BAUD_ERROR*100+BAUD_RATE/2)/BAUD_RATE)
+#if (BAUD_ERROR_PRECENT > 3)
+#warning UART frequency error is worse than 3%
+#elif (BAUD_ERROR_PRECENT > 2)
+#warning UART frequency error is worse than 2%
+#endif
     
-        UBRG = CLOSEST_UBRG_VALUE;
-    #endif
+  UBRG = CLOSEST_UBRG_VALUE;
+#endif
 
 
-// Deassert all chip select lines so there isn't any problem with 
-// initialization order.  Ex: When ENC28J60 is on SPI2 with Explorer 16, 
-// MAX3232 ROUT2 pin will drive RF12/U2CTS ENC28J60 CS line asserted, 
-// preventing proper 25LC256 EEPROM operation.
+  // Deassert all chip select lines so there isn't any problem with 
+  // initialization order.  Ex: When ENC28J60 is on SPI2 with Explorer 16, 
+  // MAX3232 ROUT2 pin will drive RF12/U2CTS ENC28J60 CS line asserted, 
+  // preventing proper 25LC256 EEPROM operation.
 #if defined(ENC_CS_TRIS)
-    ENC_CS_IO = 1;
-    ENC_CS_TRIS = 0;
+  ENC_CS_IO = 1;
+  ENC_CS_TRIS = 0;
 #endif
 }
 
@@ -203,36 +203,36 @@ static ROM BYTE SerializedMACAddress[6] = {MY_DEFAULT_MAC_BYTE1, MY_DEFAULT_MAC_
 static void InitAppConfig(void)
 {
     
-        // Start out zeroing all AppConfig bytes to ensure all fields are 
-        // deterministic for checksum generation
-        memset((void*)&AppConfig, 0x00, sizeof(AppConfig));
+  // Start out zeroing all AppConfig bytes to ensure all fields are 
+  // deterministic for checksum generation
+  memset((void*)&AppConfig, 0x00, sizeof(AppConfig));
         
-        AppConfig.Flags.bIsDHCPEnabled = 0;
-        AppConfig.Flags.bInConfigMode = 0;
-        memcpypgm2ram((void*)&AppConfig.MyMACAddr, (ROM void*)SerializedMACAddress, sizeof(AppConfig.MyMACAddr));
-//        {
-//            _prog_addressT MACAddressAddress;
-//            MACAddressAddress.next = 0x157F8;
-//            _memcpy_p2d24((char*)&AppConfig.MyMACAddr, MACAddressAddress, sizeof(AppConfig.MyMACAddr));
-//        }
-        AppConfig.MyIPAddr.Val = MY_DEFAULT_IP_ADDR_BYTE1 | MY_DEFAULT_IP_ADDR_BYTE2<<8ul | MY_DEFAULT_IP_ADDR_BYTE3<<16ul | MY_DEFAULT_IP_ADDR_BYTE4<<24ul;
-        AppConfig.DefaultIPAddr.Val = AppConfig.MyIPAddr.Val;
-        AppConfig.MyMask.Val = MY_DEFAULT_MASK_BYTE1 | MY_DEFAULT_MASK_BYTE2<<8ul | MY_DEFAULT_MASK_BYTE3<<16ul | MY_DEFAULT_MASK_BYTE4<<24ul;
-        AppConfig.DefaultMask.Val = AppConfig.MyMask.Val;
-        AppConfig.MyGateway.Val = MY_DEFAULT_GATE_BYTE1 | MY_DEFAULT_GATE_BYTE2<<8ul | MY_DEFAULT_GATE_BYTE3<<16ul | MY_DEFAULT_GATE_BYTE4<<24ul;
-        AppConfig.PrimaryDNSServer.Val = MY_DEFAULT_PRIMARY_DNS_BYTE1 | MY_DEFAULT_PRIMARY_DNS_BYTE2<<8ul  | MY_DEFAULT_PRIMARY_DNS_BYTE3<<16ul  | MY_DEFAULT_PRIMARY_DNS_BYTE4<<24ul;
-        AppConfig.SecondaryDNSServer.Val = MY_DEFAULT_SECONDARY_DNS_BYTE1 | MY_DEFAULT_SECONDARY_DNS_BYTE2<<8ul  | MY_DEFAULT_SECONDARY_DNS_BYTE3<<16ul  | MY_DEFAULT_SECONDARY_DNS_BYTE4<<24ul;
+  AppConfig.Flags.bIsDHCPEnabled = 0;
+  AppConfig.Flags.bInConfigMode = 0;
+  memcpypgm2ram((void*)&AppConfig.MyMACAddr, (ROM void*)SerializedMACAddress, sizeof(AppConfig.MyMACAddr));
+  //        {
+  //            _prog_addressT MACAddressAddress;
+  //            MACAddressAddress.next = 0x157F8;
+  //            _memcpy_p2d24((char*)&AppConfig.MyMACAddr, MACAddressAddress, sizeof(AppConfig.MyMACAddr));
+  //        }
+  AppConfig.MyIPAddr.Val = MY_DEFAULT_IP_ADDR_BYTE1 | MY_DEFAULT_IP_ADDR_BYTE2<<8ul | MY_DEFAULT_IP_ADDR_BYTE3<<16ul | MY_DEFAULT_IP_ADDR_BYTE4<<24ul;
+  AppConfig.DefaultIPAddr.Val = AppConfig.MyIPAddr.Val;
+  AppConfig.MyMask.Val = MY_DEFAULT_MASK_BYTE1 | MY_DEFAULT_MASK_BYTE2<<8ul | MY_DEFAULT_MASK_BYTE3<<16ul | MY_DEFAULT_MASK_BYTE4<<24ul;
+  AppConfig.DefaultMask.Val = AppConfig.MyMask.Val;
+  AppConfig.MyGateway.Val = MY_DEFAULT_GATE_BYTE1 | MY_DEFAULT_GATE_BYTE2<<8ul | MY_DEFAULT_GATE_BYTE3<<16ul | MY_DEFAULT_GATE_BYTE4<<24ul;
+  AppConfig.PrimaryDNSServer.Val = MY_DEFAULT_PRIMARY_DNS_BYTE1 | MY_DEFAULT_PRIMARY_DNS_BYTE2<<8ul  | MY_DEFAULT_PRIMARY_DNS_BYTE3<<16ul  | MY_DEFAULT_PRIMARY_DNS_BYTE4<<24ul;
+  AppConfig.SecondaryDNSServer.Val = MY_DEFAULT_SECONDARY_DNS_BYTE1 | MY_DEFAULT_SECONDARY_DNS_BYTE2<<8ul  | MY_DEFAULT_SECONDARY_DNS_BYTE3<<16ul  | MY_DEFAULT_SECONDARY_DNS_BYTE4<<24ul;
     
-    	AppConfig.MyRemIPAddr.Val = MY_DEFAULT_REM_IP_ADDR_BYTE1 | MY_DEFAULT_REM_IP_ADDR_BYTE2<<8ul | MY_DEFAULT_REM_IP_ADDR_BYTE3<<16ul | MY_DEFAULT_REM_IP_ADDR_BYTE4<<24ul;
+  AppConfig.MyRemIPAddr.Val = MY_DEFAULT_REM_IP_ADDR_BYTE1 | MY_DEFAULT_REM_IP_ADDR_BYTE2<<8ul | MY_DEFAULT_REM_IP_ADDR_BYTE3<<16ul | MY_DEFAULT_REM_IP_ADDR_BYTE4<<24ul;
     
     
-        // Load the default NetBIOS Host Name
-        memcpypgm2ram(AppConfig.NetBIOSName, (ROM void*)MY_DEFAULT_HOST_NAME, 16);
-        FormatNetBIOSName(AppConfig.NetBIOSName);
+  // Load the default NetBIOS Host Name
+  memcpypgm2ram(AppConfig.NetBIOSName, (ROM void*)MY_DEFAULT_HOST_NAME, 16);
+  FormatNetBIOSName(AppConfig.NetBIOSName);
     
 
-        // Compute the checksum of the AppConfig defaults as loaded from ROM
-        wOriginalAppConfigChecksum = CalcIPChecksum((BYTE*)&AppConfig, sizeof(AppConfig));
+  // Compute the checksum of the AppConfig defaults as loaded from ROM
+  wOriginalAppConfigChecksum = CalcIPChecksum((BYTE*)&AppConfig, sizeof(AppConfig));
 
 
 }
@@ -241,30 +241,30 @@ static void InitAppConfig(void)
 //
 void TCPmodbus_init(void)
 {
-    // Initialize application specific hardware
-    InitializeBoard();
+  // Initialize application specific hardware
+  InitializeBoard();
 
-    #if 1  //defined(STACK_USE_UART)
-    // Initialize stack-related hardware components that may be 
-    // required by the UART configuration routines
-    TickInit();
-  	#endif
+#if 1  //defined(STACK_USE_UART)
+  // Initialize stack-related hardware components that may be 
+  // required by the UART configuration routines
+  TickInit();
+#endif
 
-    // Initialize Stack and application related NV variables into AppConfig.
-    InitAppConfig();
+  // Initialize Stack and application related NV variables into AppConfig.
+  InitAppConfig();
     
-    InitModbusArray();
+  InitModbusArray();
 
-    // Initiates board setup process if button is depressed 
-    // on startup
-        #if defined(STACK_USE_UART)
-        DoUARTConfig();
-        #endif
+  // Initiates board setup process if button is depressed 
+  // on startup
+#if defined(STACK_USE_UART)
+  DoUARTConfig();
+#endif
     
 
-    // Initialize core stack layers (MAC, ARP, TCP, UDP) and
-    // application modules (HTTP, SNMP, etc.)
-    StackInit();
+  // Initialize core stack layers (MAC, ARP, TCP, UDP) and
+  // application modules (HTTP, SNMP, etc.)
+  StackInit();
 
 
 }
@@ -273,26 +273,26 @@ void TCPmodbus_init(void)
 //
 void TCPmodbus_task(void)
 {
-    static DWORD t = 0;
+  static DWORD t = 0;
 
-        // Blink LED0 (right most one) every second.
-        if(TickGet() - t >= TICK_SECOND/2ul)
-        {
-            t = TickGet();
-            LEDOP_IO ^= 1;
-        }
+  // Blink LED0 (right most one) every second.
+  if(TickGet() - t >= TICK_SECOND/2ul)
+    {
+      t = TickGet();
+      LEDOP_IO ^= 1;
+    }
 
-        // This task performs normal stack task including checking
-        // for incoming packet, type of packet and calling
-        // appropriate stack entity to process it.
-        StackTask();
+  // This task performs normal stack task including checking
+  // for incoming packet, type of packet and calling
+  // appropriate stack entity to process it.
+  StackTask();
         
   
-        // This tasks invokes each of the core stack application tasks
-        StackApplications();
+  // This tasks invokes each of the core stack application tasks
+  StackApplications();
 
  
-        GenericTCPClient();
+  GenericTCPClient();
 
 }
 
@@ -301,20 +301,20 @@ void TCPmodbus_task(void)
 // Writes an IP address to the LCD display and the UART as available
 void DisplayIPValue(IP_ADDR IPVal)
 {
-    BYTE IPDigit[4];
-    BYTE i;
+  BYTE IPDigit[4];
+  BYTE i;
 
-    for(i = 0; i < sizeof(IP_ADDR); i++)
+  for(i = 0; i < sizeof(IP_ADDR); i++)
     {
-        uitoa((WORD)IPVal.v[i], IPDigit);
+      uitoa((WORD)IPVal.v[i], IPDigit);
 
-        putsUART((char *) IPDigit);
+      putsUART((char *) IPDigit);
 
-        if(i == sizeof(IP_ADDR)-1)
-                break;
+      if(i == sizeof(IP_ADDR)-1)
+	break;
 
-        while(BusyUART());
-            WriteUART('.');
+      while(BusyUART());
+      WriteUART('.');
     }
 }
 #endif
@@ -337,99 +337,99 @@ void DisplayIPValue(IP_ADDR IPVal)
 
   Remarks:
     None
-  ***************************************************************************/
+***************************************************************************/
 void InitModbusArray(void)
 {
-	// write analog block
-    modbus_array[0].reference_num = 11000;
-    modbus_array[0].length = 29;
-    modbus_array[0].is_write = 1;
-    modbus_array[0].poll_behind_pw = 0;
+  // write analog block
+  modbus_array[0].reference_num = 11000;
+  modbus_array[0].length = 29;
+  modbus_array[0].is_write = 1;
+  modbus_array[0].poll_behind_pw = 0;
 
-	// write fault&event block
-	modbus_array[1].reference_num = 12000;
-    modbus_array[1].length = 5;
-    modbus_array[1].is_write = 1;
-    modbus_array[1].poll_behind_pw = 0;
+  // write fault&event block
+  modbus_array[1].reference_num = 12000;
+  modbus_array[1].length = 5;
+  modbus_array[1].is_write = 1;
+  modbus_array[1].poll_behind_pw = 0;
 
-	// write energy param
-	modbus_array[2].reference_num = 11100;
-    modbus_array[2].length = 23;
-    modbus_array[2].is_write = 1;
-    modbus_array[2].poll_behind_pw = 1;
+  // write energy param
+  modbus_array[2].reference_num = 11100;
+  modbus_array[2].length = 23;
+  modbus_array[2].is_write = 1;
+  modbus_array[2].poll_behind_pw = 1;
 
-	// rd pw
-	modbus_array[3].reference_num = 11048;
-    modbus_array[3].length = 2;
-    modbus_array[3].is_write = 0;
-    modbus_array[3].poll_behind_pw = 0;
+  // rd pw
+  modbus_array[3].reference_num = 11048;
+  modbus_array[3].length = 2;
+  modbus_array[3].is_write = 0;
+  modbus_array[3].poll_behind_pw = 0;
 
-	// rd Ekset
-	modbus_array[4].reference_num = 11050;
-    modbus_array[4].length = 1;
-    modbus_array[4].is_write = 0;
-    modbus_array[4].poll_behind_pw = 1;
+  // rd Ekset
+  modbus_array[4].reference_num = 11050;
+  modbus_array[4].length = 1;
+  modbus_array[4].is_write = 0;
+  modbus_array[4].poll_behind_pw = 1;
     
-	// rd fault mask, AFC pos
-	modbus_array[5].reference_num = 11095;
-    modbus_array[5].length = 2;
-    modbus_array[5].is_write = 0;
-    modbus_array[5].poll_behind_pw = 1;
+  // rd fault mask, AFC pos
+  modbus_array[5].reference_num = 11095;
+  modbus_array[5].length = 2;
+  modbus_array[5].is_write = 0;
+  modbus_array[5].poll_behind_pw = 1;
     
- 	// rd energy cmds
-	modbus_array[6].reference_num = 11099;
-    modbus_array[6].length = 1;
-    modbus_array[6].is_write = 0;
-    modbus_array[6].poll_behind_pw = 1;
+  // rd energy cmds
+  modbus_array[6].reference_num = 11099;
+  modbus_array[6].length = 1;
+  modbus_array[6].is_write = 0;
+  modbus_array[6].poll_behind_pw = 1;
     
- 	// rd Ifset
-	modbus_array[7].reference_num = 11051;
-    modbus_array[7].length = 1;
-    modbus_array[7].is_write = 0;
-    modbus_array[7].poll_behind_pw = 1;
+  // rd Ifset
+  modbus_array[7].reference_num = 11051;
+  modbus_array[7].length = 1;
+  modbus_array[7].is_write = 0;
+  modbus_array[7].poll_behind_pw = 1;
 
- 	// rd AFC home
-    modbus_array[8].reference_num = 11056;
-    modbus_array[8].length = 1;
-    modbus_array[8].is_write = 0;
-    modbus_array[8].poll_behind_pw = 1;
+  // rd AFC home
+  modbus_array[8].reference_num = 11056;
+  modbus_array[8].length = 1;
+  modbus_array[8].is_write = 0;
+  modbus_array[8].poll_behind_pw = 1;
 
- 	// rd AFC param select
-    modbus_array[9].reference_num = 11057;
-    modbus_array[9].length = 1;
-    modbus_array[9].is_write = 0;
-    modbus_array[9].poll_behind_pw = 1;
+  // rd AFC param select
+  modbus_array[9].reference_num = 11057;
+  modbus_array[9].length = 1;
+  modbus_array[9].is_write = 0;
+  modbus_array[9].poll_behind_pw = 1;
     
- 	// rd sleep delay
-    modbus_array[10].reference_num = 11058;
-    modbus_array[10].length = 1;
-    modbus_array[10].is_write = 0;
-    modbus_array[10].poll_behind_pw = 1;
+  // rd sleep delay
+  modbus_array[10].reference_num = 11058;
+  modbus_array[10].length = 1;
+  modbus_array[10].is_write = 0;
+  modbus_array[10].poll_behind_pw = 1;
     
- 	// rd cabT limit
-    modbus_array[11].reference_num = 11061;
-    modbus_array[11].length = 1;
-    modbus_array[11].is_write = 0;
-    modbus_array[11].poll_behind_pw = 1;
+  // rd cabT limit
+  modbus_array[11].reference_num = 11061;
+  modbus_array[11].length = 1;
+  modbus_array[11].is_write = 0;
+  modbus_array[11].poll_behind_pw = 1;
     
- 	// rd htd
-    modbus_array[12].reference_num = 11062;
-    modbus_array[12].length = 1;
-    modbus_array[12].is_write = 0;
-    modbus_array[12].poll_behind_pw = 1;
+  // rd htd
+  modbus_array[12].reference_num = 11062;
+  modbus_array[12].length = 1;
+  modbus_array[12].is_write = 0;
+  modbus_array[12].poll_behind_pw = 1;
     
-	// read energy param
-	modbus_array[13].reference_num = 11100;
-    modbus_array[13].length = 23;
-    modbus_array[13].is_write = 0;
-    modbus_array[13].poll_behind_pw = 1;
+  // read energy param
+  modbus_array[13].reference_num = 11100;
+  modbus_array[13].length = 23;
+  modbus_array[13].is_write = 0;
+  modbus_array[13].poll_behind_pw = 1;
 
    
-  	// rd digital cmds
-    modbus_array[14].reference_num = 11047;
-    modbus_array[14].length = 1;
-    modbus_array[14].is_write = 0;
-    modbus_array[14].poll_behind_pw = 0;
+  // rd digital cmds
+  modbus_array[14].reference_num = 11047;
+  modbus_array[14].length = 1;
+  modbus_array[14].is_write = 0;
+  modbus_array[14].poll_behind_pw = 0;
     
 
 
@@ -448,72 +448,74 @@ void InitModbusArray(void)
 
   Returns:
   	total byte length
-  ***************************************************************************/
+***************************************************************************/
 WORD BuildModbusOutput(void)
 {
-	BYTE i;
-    WORD total_bytes;
+  BYTE i;
+  WORD total_bytes;
     
-	if (super_user_mode == 0)
+  if (super_user_mode == 0)
     {
-		while (modbus_array[modbus_array_index].poll_behind_pw > 0)
+      while (modbus_array[modbus_array_index].poll_behind_pw > 0)
         {
-        	modbus_array_index++;
-            if (modbus_array_index >= MODBUS_ARRAY_SIZE) modbus_array_index = 0;
+	  modbus_array_index++;
+	  if (modbus_array_index >= MODBUS_ARRAY_SIZE) modbus_array_index = 0;
         }
     }
 
+	
+
     
-    data_buffer[0] = modbus_array_index + 1;	 // transaction hi byte
-    data_buffer[1] = transaction_number_lo;	 // transaction lo byte
-    data_buffer[2] = 0;	// protocol hi 
-    data_buffer[3] = 0;	// protocol lo 
-	// byte 4 and 5 for length
-    data_buffer[6] = 0;	// unit Id 
+  data_buffer[0] = modbus_array_index + 1;	 // transaction hi byte
+  data_buffer[1] = transaction_number_lo;	 // transaction lo byte
+  data_buffer[2] = 0;	// protocol hi 
+  data_buffer[3] = 0;	// protocol lo 
+  // byte 4 and 5 for length
+  data_buffer[6] = 0;	// unit Id 
 
-    data_buffer[8] = ((modbus_array[modbus_array_index].reference_num - 1) / 256) & 0xff;  // ref #
-    data_buffer[9] = (modbus_array[modbus_array_index].reference_num - 1) % 256;
+  data_buffer[8] = ((modbus_array[modbus_array_index].reference_num - 1) / 256) & 0xff;  // ref #
+  data_buffer[9] = (modbus_array[modbus_array_index].reference_num - 1) % 256;
 
-    if (modbus_array[modbus_array_index].is_write) 
+  if (modbus_array[modbus_array_index].is_write) 
     {  
-	/* modbus header for write:  transaction ID(word), protocol ID(word, 0x0000), length(word, bytes to follow), 
-       unit id (byte, 0xff), function code (byte, 0x10), reference number(word), data word count (word), 
-       data byte count(byte), data bytes */
+      /* modbus header for write:  transaction ID(word), protocol ID(word, 0x0000), length(word, bytes to follow), 
+	 unit id (byte, 0xff), function code (byte, 0x10), reference number(word), data word count (word), 
+	 data byte count(byte), data bytes */
 
-    	data_buffer[7] = 0x10; // function code 
+      data_buffer[7] = 0x10; // function code 
         
-        data_buffer[10] = 0;  // data length in words hi, always 0, assume data length < 256
-        data_buffer[11] = modbus_array[modbus_array_index].length;  // data length in words lo
-        data_buffer[12] = (modbus_array[modbus_array_index].length << 1);  // data length in bytes
-        for (i = 0; i < data_buffer[12]; i++)
-        	data_buffer[i + 13] = modbus_array[modbus_array_index].data[i];
+      data_buffer[10] = 0;  // data length in words hi, always 0, assume data length < 256
+      data_buffer[11] = modbus_array[modbus_array_index].length;  // data length in words lo
+      data_buffer[12] = (modbus_array[modbus_array_index].length << 1);  // data length in bytes
+      for (i = 0; i < data_buffer[12]; i++)
+	data_buffer[i + 13] = modbus_array[modbus_array_index].data[i];
         
-        // fill the byte length    
-        data_buffer[4] = ((data_buffer[12] + 7) / 256) & 0xff;
-        data_buffer[5] = (data_buffer[12] + 7) % 256;
-        total_bytes = i + 13; 
+      // fill the byte length    
+      data_buffer[4] = ((data_buffer[12] + 7) / 256) & 0xff;
+      data_buffer[5] = (data_buffer[12] + 7) % 256;
+      total_bytes = i + 13; 
     }
-    else
+  else
     {  
-	/* modbus header for read:  transaction ID(word), protocol ID(word, 0x0000), length(word, bytes to follow), 
-       unit id (byte, 0xff), function code (byte, 0x03), reference number(word), word count (byte) */
+      /* modbus header for read:  transaction ID(word), protocol ID(word, 0x0000), length(word, bytes to follow), 
+	 unit id (byte, 0xff), function code (byte, 0x03), reference number(word), word count (byte) */
 
-    	data_buffer[7] = 0x3; // function code 
+      data_buffer[7] = 0x3; // function code 
 
-        data_buffer[10] = 0;  // data length in words hi 
-        data_buffer[11] = modbus_array[modbus_array_index].length;  // data length in words lo
+      data_buffer[10] = 0;  // data length in words hi 
+      data_buffer[11] = modbus_array[modbus_array_index].length;  // data length in words lo
         
-        // fill the byte length    
-        data_buffer[4] = 0;
-        data_buffer[5] = 6;
-        total_bytes = 12; 
+      // fill the byte length    
+      data_buffer[4] = 0;
+      data_buffer[5] = 6;
+      total_bytes = 12; 
         
     }
     
-    transaction_number_lo++;
-    transaction_number_lo = transaction_number_lo % 256;
+  transaction_number_lo++;
+  transaction_number_lo = transaction_number_lo % 256;
     
-    return (total_bytes);
+  return (total_bytes);
     
 }
 /*****************************************************************************
@@ -542,170 +544,170 @@ WORD BuildModbusOutput(void)
 
   Returns:
   	None
-  ***************************************************************************/
+***************************************************************************/
 void GenericTCPClient(void)
 {
-	BYTE 				i;
-	WORD				w, len;
-    DWORD               pw;
-//    char                sBuffer[250];
+  BYTE 				i;
+  WORD				w, len;
+  DWORD               pw;
+  //    char                sBuffer[250];
        
-	static DWORD		Timer;
-	static TCP_SOCKET	MySocket = INVALID_SOCKET;
-	static enum _GenericTCPExampleState
+  static DWORD		Timer;
+  static TCP_SOCKET	MySocket = INVALID_SOCKET;
+  static enum _GenericTCPExampleState
+  {
+    SM_HOME = 0,
+    SM_SOCKET_OBTAINED,
+#if defined(STACK_USE_SSL_CLIENT)
+    SM_START_SSL,
+#endif
+    SM_PROCESS_RESPONSE,
+    SM_DISCONNECT,
+    SM_DONE
+  } GenericTCPExampleState = SM_DONE;
+
+  switch(GenericTCPExampleState)
+    {
+    case SM_HOME:
+      // Connect a socket to the remote TCP server, 192.168.66.15
+      //			MySocket = TCPOpen(0x0F42A8C0, TCP_OPEN_IP_ADDRESS, 502, TCP_PURPOSE_TCP_MODBUS_CLIENT);
+      MySocket = TCPOpen(AppConfig.MyRemIPAddr.Val, TCP_OPEN_IP_ADDRESS, 502, TCP_PURPOSE_TCP_MODBUS_CLIENT);
+			
+      // Abort operation if no TCP socket of type TCP_PURPOSE_GENERIC_TCP_CLIENT is available
+      // If this ever happens, you need to go add one to TCPIPConfig.h
+      if(MySocket == INVALID_SOCKET)
+	break;
+
+#if defined(STACK_USE_UART)
+      putrsUART((ROM char*)"\r\n\r\nConnecting using Microchip TCP API...\r\n");
+#endif
+
+      GenericTCPExampleState++;
+      Timer = TickGet();
+      break;
+
+    case SM_SOCKET_OBTAINED:
+      // Wait for the remote server to accept our connection request
+      if(!TCPIsConnected(MySocket))
 	{
-		SM_HOME = 0,
-		SM_SOCKET_OBTAINED,
-		#if defined(STACK_USE_SSL_CLIENT)
-    	SM_START_SSL,
-    	#endif
-		SM_PROCESS_RESPONSE,
-		SM_DISCONNECT,
-		SM_DONE
-	} GenericTCPExampleState = SM_DONE;
-
-	switch(GenericTCPExampleState)
-	{
-		case SM_HOME:
-			// Connect a socket to the remote TCP server, 192.168.66.15
-  //			MySocket = TCPOpen(0x0F42A8C0, TCP_OPEN_IP_ADDRESS, 502, TCP_PURPOSE_TCP_MODBUS_CLIENT);
-			MySocket = TCPOpen(AppConfig.MyRemIPAddr.Val, TCP_OPEN_IP_ADDRESS, 502, TCP_PURPOSE_TCP_MODBUS_CLIENT);
-			
-			// Abort operation if no TCP socket of type TCP_PURPOSE_GENERIC_TCP_CLIENT is available
-			// If this ever happens, you need to go add one to TCPIPConfig.h
-			if(MySocket == INVALID_SOCKET)
-				break;
-
-			#if defined(STACK_USE_UART)
-			putrsUART((ROM char*)"\r\n\r\nConnecting using Microchip TCP API...\r\n");
-			#endif
-
-			GenericTCPExampleState++;
-			Timer = TickGet();
-			break;
-
-		case SM_SOCKET_OBTAINED:
-			// Wait for the remote server to accept our connection request
-			if(!TCPIsConnected(MySocket))
-			{
-				// Time out if too much time is spent in this state
-				if(TickGet()-Timer > 5*TICK_SECOND)
-				{
-					// Close the socket so it can be used by other modules
-					TCPDisconnect(MySocket);
-					MySocket = INVALID_SOCKET;
-					GenericTCPExampleState--;
-				}
-				break;
-			}
-
-			Timer = TickGet();
-			
-			// Make certain the socket can be written to
-			if(TCPIsPutReady(MySocket) < 125u)
-				break;
-			
-            #if 0
-			// Place the application protocol data into the transmit buffer.  For this example, we are connected to an HTTP server, so we'll send an HTTP GET request.
-			TCPPutROMString(MySocket, (ROM BYTE*)"GET ");
-			TCPPutROMString(MySocket, RemoteURL);
-			TCPPutROMString(MySocket, (ROM BYTE*)" HTTP/1.0\r\nHost: ");
-			TCPPutString(MySocket, ServerName);
-			TCPPutROMString(MySocket, (ROM BYTE*)"\r\nConnection: close\r\n\r\n");
-			#else
-           // TCPPutArray(MySocket,  (BYTE *)"\xa\x9d\x0\x0\x0\x6\xff\x3\x2b\x27\x00\x02", 12);
-            len = BuildModbusOutput();
-            TCPPutArray(MySocket,  data_buffer, len);
-           
-            #endif
-			// Send the packet
-			TCPFlush(MySocket);
-			GenericTCPExampleState++;
-			break;
-
-		case SM_PROCESS_RESPONSE:
-			// Check to see if the remote node has disconnected from us or sent us any application data
-			// If application data is available, write it to the UART
-			if(!TCPIsConnected(MySocket))
-			{
-				GenericTCPExampleState = SM_DISCONNECT;
-				// Do not break;  We might still have data in the TCP RX FIFO waiting for us
-			}
-	
-			// Get count of RX bytes waiting
-			w = TCPIsGetReady(MySocket);	
-	
-			// Obtian and print the server reply
-			i = sizeof(data_buffer)-1;
-			data_buffer[i] = '\0';
-		
-        	while(w)	// ignore if incoming data is larger than the data_buffer
-			{
-				if(w < i)
-				{
-					i = w;
-					data_buffer[i] = '\0';
-				}
-			 //	w -= TCPGetArray(MySocket, vBuffer, i);
-                len = TCPGetArray(MySocket, data_buffer, i);
-                w -= len;
-				#if 0 //defined(STACK_USE_UART)
-                for (k = 0; k < len; k++)
-                	sprintf(sBuffer + 3 * k, "%02x ", data_buffer[k]);
-                sBuffer[3 * k] = 0;    
-				putsUART((char*)sBuffer);
-				#endif
-				
-				// putsUART is a blocking call which will slow down the rest of the stack 
-				// if we shovel the whole TCP RX FIFO into the serial port all at once.  
-				// Therefore, let's break out after only one chunk most of the time.  The 
-				// only exception is when the remote node disconncets from us and we need to 
-				// use up all the data before changing states.
-			
-            //	if(GenericTCPExampleState == SM_PROCESS_RESPONSE)  break;
-            /* put into modbus_array */
-	            if (data_buffer[0] == (modbus_array_index + 1))
-	            {
-		            if (data_buffer[7] == 0x03 && data_buffer[8] == (modbus_array[modbus_array_index].length * 2))
-	                { // read
-	                	for (i = 0; i < data_buffer[8]; i++)
-	                		modbus_array[modbus_array_index].data[i] = data_buffer[i + 9];
-
-	                    if (modbus_array_index == 3) // pw
-	                    {
-	                    	pw = (modbus_array[modbus_array_index].data[2] << 8) | modbus_array[modbus_array_index].data[3];
-	                        pw <<= 16;
-	                        pw |= ((modbus_array[modbus_array_index].data[0] << 8) | modbus_array[modbus_array_index].data[1]) & 0xffff;
-                            if (pw == 452873) 
-	                    		super_user_mode = 1;
-                            else
-	                    		super_user_mode = 0;
-                                
-	                    }
-	            	}
-	            }
-            
-			    modbus_array_index++;
-			    if (modbus_array_index >= MODBUS_ARRAY_SIZE) modbus_array_index = 0;
-			}
-    
-            GenericTCPExampleState = SM_SOCKET_OBTAINED; // repeat sending
-	
-			break;
-	
-		case SM_DISCONNECT:
-			// Close the socket so it can be used by other modules
-			// For this application, we wish to stay connected, but this state will still get entered if the remote server decides to disconnect
-			TCPDisconnect(MySocket);
-			MySocket = INVALID_SOCKET;
-			GenericTCPExampleState = SM_DONE;
-			break;
-	
-		case SM_DONE:
-			// Do nothing unless the user pushes BUTTON1 and wants to restart the whole connection/download process
-			//if(BUTTON1_IO == 0u)
-			GenericTCPExampleState = SM_HOME;
-			break;
+	  // Time out if too much time is spent in this state
+	  if(TickGet()-Timer > 5*TICK_SECOND)
+	    {
+	      // Close the socket so it can be used by other modules
+	      TCPDisconnect(MySocket);
+	      MySocket = INVALID_SOCKET;
+	      GenericTCPExampleState--;
+	    }
+	  break;
 	}
+
+      Timer = TickGet();
+			
+      // Make certain the socket can be written to
+      if(TCPIsPutReady(MySocket) < 125u)
+	break;
+			
+#if 0
+      // Place the application protocol data into the transmit buffer.  For this example, we are connected to an HTTP server, so we'll send an HTTP GET request.
+      TCPPutROMString(MySocket, (ROM BYTE*)"GET ");
+      TCPPutROMString(MySocket, RemoteURL);
+      TCPPutROMString(MySocket, (ROM BYTE*)" HTTP/1.0\r\nHost: ");
+      TCPPutString(MySocket, ServerName);
+      TCPPutROMString(MySocket, (ROM BYTE*)"\r\nConnection: close\r\n\r\n");
+#else
+      // TCPPutArray(MySocket,  (BYTE *)"\xa\x9d\x0\x0\x0\x6\xff\x3\x2b\x27\x00\x02", 12);
+      len = BuildModbusOutput();
+      TCPPutArray(MySocket,  data_buffer, len);
+           
+#endif
+      // Send the packet
+      TCPFlush(MySocket);
+      GenericTCPExampleState++;
+      break;
+
+    case SM_PROCESS_RESPONSE:
+      // Check to see if the remote node has disconnected from us or sent us any application data
+      // If application data is available, write it to the UART
+      if(!TCPIsConnected(MySocket))
+	{
+	  GenericTCPExampleState = SM_DISCONNECT;
+	  // Do not break;  We might still have data in the TCP RX FIFO waiting for us
+	}
+	
+      // Get count of RX bytes waiting
+      w = TCPIsGetReady(MySocket);	
+	
+      // Obtian and print the server reply
+      i = sizeof(data_buffer)-1;
+      data_buffer[i] = '\0';
+		
+      while(w)	// ignore if incoming data is larger than the data_buffer
+	{
+	  if(w < i)
+	    {
+	      i = w;
+	      data_buffer[i] = '\0';
+	    }
+	  //	w -= TCPGetArray(MySocket, vBuffer, i);
+	  len = TCPGetArray(MySocket, data_buffer, i);
+	  w -= len;
+#if 0 //defined(STACK_USE_UART)
+	  for (k = 0; k < len; k++)
+	    sprintf(sBuffer + 3 * k, "%02x ", data_buffer[k]);
+	  sBuffer[3 * k] = 0;    
+	  putsUART((char*)sBuffer);
+#endif
+				
+	  // putsUART is a blocking call which will slow down the rest of the stack 
+	  // if we shovel the whole TCP RX FIFO into the serial port all at once.  
+	  // Therefore, let's break out after only one chunk most of the time.  The 
+	  // only exception is when the remote node disconncets from us and we need to 
+	  // use up all the data before changing states.
+			
+	  //	if(GenericTCPExampleState == SM_PROCESS_RESPONSE)  break;
+	  /* put into modbus_array */
+	  if (data_buffer[0] == (modbus_array_index + 1))
+	    {
+	      if (data_buffer[7] == 0x03 && data_buffer[8] == (modbus_array[modbus_array_index].length * 2))
+		{ // read
+		  for (i = 0; i < data_buffer[8]; i++)
+		    modbus_array[modbus_array_index].data[i] = data_buffer[i + 9];
+
+		  if (modbus_array_index == 3) // pw
+		    {
+		      pw = (modbus_array[modbus_array_index].data[2] << 8) | modbus_array[modbus_array_index].data[3];
+		      pw <<= 16;
+		      pw |= ((modbus_array[modbus_array_index].data[0] << 8) | modbus_array[modbus_array_index].data[1]) & 0xffff;
+		      if (pw == 452873) 
+			super_user_mode = 1;
+		      else
+			super_user_mode = 0;
+                                
+		    }
+		}
+	    }
+            
+	  modbus_array_index++;
+	  if (modbus_array_index >= MODBUS_ARRAY_SIZE) modbus_array_index = 0;
+	}
+    
+      GenericTCPExampleState = SM_SOCKET_OBTAINED; // repeat sending
+	
+      break;
+	
+    case SM_DISCONNECT:
+      // Close the socket so it can be used by other modules
+      // For this application, we wish to stay connected, but this state will still get entered if the remote server decides to disconnect
+      TCPDisconnect(MySocket);
+      MySocket = INVALID_SOCKET;
+      GenericTCPExampleState = SM_DONE;
+      break;
+	
+    case SM_DONE:
+      // Do nothing unless the user pushes BUTTON1 and wants to restart the whole connection/download process
+      //if(BUTTON1_IO == 0u)
+      GenericTCPExampleState = SM_HOME;
+      break;
+    }
 }
 

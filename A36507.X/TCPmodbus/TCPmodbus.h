@@ -14,11 +14,11 @@
 
 #if defined(STACK_USE_UART)
 
-	#define BAUD_RATE       (19200)		// bps
+#define BAUD_RATE       (19200)		// bps
 
-	void DoUARTConfig(void);
+void DoUARTConfig(void);
 
-	#define SaveAppConfig(a)
+#define SaveAppConfig(a)
 // An actual function defined in MainDemo.c for displaying the current IP
 // address on the UART and/or LCD.
 void DisplayIPValue(IP_ADDR IPVal);
@@ -40,11 +40,11 @@ void TCPmodbus_task(void);
 
 typedef struct __attribute__((__packed__)) modbusStruct 
 {
-	unsigned int reference_num;          // reference #, or register address
-	unsigned char length;                 // data length in word size
-	unsigned char data[MAX_DATA_SIZE];      // data to be sent
-	unsigned char is_write;				// write data to computer
-	unsigned char poll_behind_pw;         // only send data out in super user mode
+  unsigned int reference_num;          // reference #, or register address
+  unsigned char length;                 // data length in word size
+  unsigned char data[MAX_DATA_SIZE];      // data to be sent
+  unsigned char is_write;				// write data to computer
+  unsigned char poll_behind_pw;         // only send data out in super user mode
 
 } MODBUS;
 
