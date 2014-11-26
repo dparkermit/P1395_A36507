@@ -48,6 +48,18 @@ typedef struct __attribute__((__packed__)) modbusStruct
 
 } MODBUS;
 
+
+
+typedef struct {
+  unsigned char* data_ptr;             // This points the the array that we want to transfer
+  unsigned char  data_length;          // This is the length (in bytes) of the array that we want to transfer
+  unsigned char  index;                // This is the index that the GUI is expecting
+  unsigned int   reference_num;        // This is the register address for the data we are updating on the GUI
+} ETMEthernetArray;
+  
+
+
+
 #ifdef IS_MODBUS_MAIN
 MODBUS modbus_array[MODBUS_ARRAY_SIZE]; 
 #else					 

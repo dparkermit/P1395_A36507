@@ -8,16 +8,11 @@
         <logicalFolder name="f1" displayName="TCPIPStack" projectFiles="true">
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/ARCFOUR.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/ARP.h</itemPath>
-          <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/Announce.h</itemPath>
-          <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/AutoIP.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/Compiler.h</itemPath>
-          <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/DHCP.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/DNS.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/Delay.h</itemPath>
-          <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/DynDNS.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/ENC28J60.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/GenericTypeDefs.h</itemPath>
-          <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/Hashes.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/Helpers.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/ICMP.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/IP.h</itemPath>
@@ -25,13 +20,11 @@
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/RSA.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/Reboot.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/SPIFlash.h</itemPath>
-          <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/SPIRAM.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/StackTsk.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/TCP.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/TCPIP.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/TCPIPConfig.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/Tick.h</itemPath>
-          <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/UART.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/UDP.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/regdef.h</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/TCPIPENC28.h</itemPath>
@@ -59,26 +52,15 @@
       <logicalFolder name="f1" displayName="TCPmodbus" projectFiles="true">
         <logicalFolder name="f1" displayName="TCPIPStack" projectFiles="true">
           <itemPath>TCPmodbus/TCPIPStack/ARP.c</itemPath>
-          <itemPath>TCPmodbus/TCPIPStack/Announce.c</itemPath>
-          <itemPath>TCPmodbus/TCPIPStack/AutoIP.c</itemPath>
-          <itemPath>TCPmodbus/TCPIPStack/DHCP.c</itemPath>
-          <itemPath>TCPmodbus/TCPIPStack/DHCPs.c</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/DNS.c</itemPath>
-          <itemPath>TCPmodbus/TCPIPStack/DNSs.c</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/Delay.c</itemPath>
-          <itemPath>TCPmodbus/TCPIPStack/DynDNS.c</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/ENC28J60.c</itemPath>
-          <itemPath>TCPmodbus/TCPIPStack/Hashes.c</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/Helpers.c</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/ICMP.c</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/IP.c</itemPath>
-          <itemPath>TCPmodbus/TCPIPStack/SPIRAM.c</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/StackTsk.c</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/TCP.c</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/Tick.c</itemPath>
-          <itemPath>TCPmodbus/TCPIPStack/UART.c</itemPath>
-          <itemPath>TCPmodbus/TCPIPStack/UART2TCPBridge.c</itemPath>
-          <itemPath>TCPmodbus/TCPIPStack/UARTConfig.c</itemPath>
           <itemPath>TCPmodbus/TCPIPStack/UDP.c</itemPath>
         </logicalFolder>
         <itemPath>TCPmodbus/TCPmodbus.c</itemPath>
@@ -255,6 +237,7 @@
         <property key="save-temps" value="false"/>
       </C30Global>
       <ICD3PlatformTool>
+        <property key="firmware.download.all" value="false"/>
       </ICD3PlatformTool>
     </conf>
   </confs>

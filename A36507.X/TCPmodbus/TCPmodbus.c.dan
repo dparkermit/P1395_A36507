@@ -72,11 +72,19 @@ static unsigned short wOriginalAppConfigChecksum;    // Checksum of the ROM defa
 
 #define LED_PUT(a)	do{unsigned char vTemp = (a); LEDOP_IO = vTemp&0x1; LEDA_IO = vTemp&0x4; LEDB_IO = vTemp&0x2;} while(0)
 
+void ETMEthernetSendArray(ETMEthernetArray* ptr, TCP_SOCKET socket);
+unsigned char dan_array[58];
+unsigned int dan_count;
+
+ETMEthernetArray dan_test_structure;
+
 
 static BYTE         data_buffer[MAX_TX_SIZE];
 static BYTE         modbus_array_index = 0;
 static BYTE         super_user_mode = 0;
-static WORD         transaction_number_lo = 0;
+//static WORD         transaction_number_lo = 0;
+unsigned int        transaction_number_low = 0;
+
 
 /****************************************************************************
   Function:
@@ -340,6 +348,22 @@ void DisplayIPValue(IP_ADDR IPVal)
 ***************************************************************************/
 void InitModbusArray(void)
 {
+
+ 
+  dan_array[2] = 0x02;
+  dan_array[3] = 0x20;
+  dan_array[4] = 0x03;
+  dan_array[5] = 0x30;
+  dan_array[6] = 0x04;
+  dan_array[7] = 0x40;
+  dan_array[8] = 0x05;
+  dan_array[9] = 0x50;
+
+  dan_test_structure.data_ptr = &dan_array;
+  dan_test_structure.data_length = 58;
+  dan_test_structure.index = 0;
+  dan_test_structure.reference_num = 11000;
+
   // write analog block
   modbus_array[0].reference_num = 11000;
   modbus_array[0].length = 29;
@@ -449,86 +473,57 @@ void InitModbusArray(void)
   Returns:
   	total byte length
 ***************************************************************************/
-WORD BuildModbusOutput(void)
-{
-  BYTE i;
-  WORD total_bytes;
-    
-  if (super_user_mode == 0)
-    {
-      while (modbus_array[modbus_array_index].poll_behind_pw > 0)
-        {
-	  modbus_array_index++;
-	  if (modbus_array_index >= MODBUS_ARRAY_SIZE) modbus_array_index = 0;
-        }
-    }
 
-  modbus_array[0].data[0] = 0x01;
-  modbus_array[0].data[1] = 0x10;
-  modbus_array[0].data[2] = 0x02;
-  modbus_array[0].data[3] = 0x20;
-  modbus_array[0].data[4] = 0x03;
-  modbus_array[0].data[5] = 0x30;
-  modbus_array[0].data[6] = 0x04;
-  modbus_array[0].data[7] = 0x40;
-  modbus_array[0].data[8] = 0x05;
-  modbus_array[0].data[9] = 0x50;
+void ETMEthernetSendArray(ETMEthernetArray* ptr, TCP_SOCKET socket) {
+  unsigned int temp;
+  unsigned char i;
+  unsigned int  total_bytes;
 
-	
+  /* 
+     modbus header for write:  transaction ID(word), protocol ID(word, 0x0000), length(word, bytes to follow), 
+     unit id (byte, 0xff), function code (byte, 0x10), reference number(word), data word count (word), 
+     data byte count(byte), data bytes 
+  */
+  
+  data_buffer[0] = ptr->index + 1;	         // transaction hi byte
 
-    
-  data_buffer[0] = modbus_array_index + 1;	 // transaction hi byte
-  data_buffer[1] = transaction_number_lo;	 // transaction lo byte
+  data_buffer[1] = transaction_number_low;	 // transaction low byte
+  transaction_number_low++;
+  transaction_number_low &= 0xFF;
+  
   data_buffer[2] = 0;	// protocol hi 
   data_buffer[3] = 0;	// protocol lo 
+  
   // byte 4 and 5 for length
+  temp = ptr->data_length;
+  temp += 7;
+  data_buffer[5] = temp & 0xFF;
+  temp >>= 8;
+  data_buffer[4] = temp;
+  
   data_buffer[6] = 0;	// unit Id 
-
-  data_buffer[8] = ((modbus_array[modbus_array_index].reference_num - 1) / 256) & 0xff;  // ref #
-  data_buffer[9] = (modbus_array[modbus_array_index].reference_num - 1) % 256;
-
-  if (modbus_array[modbus_array_index].is_write) 
-    {  
-      /* modbus header for write:  transaction ID(word), protocol ID(word, 0x0000), length(word, bytes to follow), 
-	 unit id (byte, 0xff), function code (byte, 0x10), reference number(word), data word count (word), 
-	 data byte count(byte), data bytes */
-
-      data_buffer[7] = 0x10; // function code 
-        
-      data_buffer[10] = 0;  // data length in words hi, always 0, assume data length < 256
-      data_buffer[11] = modbus_array[modbus_array_index].length;  // data length in words lo
-      data_buffer[12] = (modbus_array[modbus_array_index].length << 1);  // data length in bytes
-      for (i = 0; i < data_buffer[12]; i++)
-	data_buffer[i + 13] = modbus_array[modbus_array_index].data[i];
-        
-      // fill the byte length    
-      data_buffer[4] = ((data_buffer[12] + 7) / 256) & 0xff;
-      data_buffer[5] = (data_buffer[12] + 7) % 256;
-      total_bytes = i + 13; 
-    }
-  else
-    {  
-      /* modbus header for read:  transaction ID(word), protocol ID(word, 0x0000), length(word, bytes to follow), 
-	 unit id (byte, 0xff), function code (byte, 0x03), reference number(word), word count (byte) */
-
-      data_buffer[7] = 0x3; // function code 
-
-      data_buffer[10] = 0;  // data length in words hi 
-      data_buffer[11] = modbus_array[modbus_array_index].length;  // data length in words lo
-        
-      // fill the byte length    
-      data_buffer[4] = 0;
-      data_buffer[5] = 6;
-      total_bytes = 12; 
-        
-    }
+  data_buffer[7] = 0x10; // function code  
+ 
+  temp = ptr->reference_num - 1;
+  data_buffer[9] = temp & 0xFF;
+  temp >>= 8;
+  data_buffer[8] = temp;
     
-  transaction_number_lo++;
-  transaction_number_lo = transaction_number_lo % 256;
-    
-  return (total_bytes);
-    
-}
+  data_buffer[10] = 0;  // data length in words hi, always 0, assume data length < 256
+  data_buffer[11] = ptr->data_length >> 1;  // data length in words low
+  data_buffer[12] = ptr->data_length;       // data length in bytes
+  
+  for (i = 0; i < ptr->data_length; i++) {
+    data_buffer[i + 13] = *ptr->data_ptr;
+    ptr->data_ptr++;
+  }
+  // fill the byte length    
+  total_bytes = i + 13; 
+  
+  TCPPutArray(socket,  data_buffer, total_bytes);  
+}  
+
+
 /*****************************************************************************
   Function:
 	void GenericTCPClient(void)
@@ -558,6 +553,7 @@ WORD BuildModbusOutput(void)
 ***************************************************************************/
 void GenericTCPClient(void)
 {
+  unsigned int temp;
   BYTE 				i;
   WORD				w, len;
   DWORD               pw;
@@ -617,26 +613,19 @@ void GenericTCPClient(void)
       // Make certain the socket can be written to
       if(TCPIsPutReady(MySocket) < 125u)
 	break;
-			
-#if 0
-      // Place the application protocol data into the transmit buffer.  For this example, we are connected to an HTTP server, so we'll send an HTTP GET request.
-      TCPPutROMString(MySocket, (ROM BYTE*)"GET ");
-      TCPPutROMString(MySocket, RemoteURL);
-      TCPPutROMString(MySocket, (ROM BYTE*)" HTTP/1.0\r\nHost: ");
-      TCPPutString(MySocket, ServerName);
-      TCPPutROMString(MySocket, (ROM BYTE*)"\r\nConnection: close\r\n\r\n");
-#else
-      // TCPPutArray(MySocket,  (BYTE *)"\xa\x9d\x0\x0\x0\x6\xff\x3\x2b\x27\x00\x02", 12);
-      len = BuildModbusOutput();
-      TCPPutArray(MySocket,  data_buffer, len);
+		
 
+
+	
+      // TCPPutArray(MySocket,  (BYTE *)"\xa\x9d\x0\x0\x0\x6\xff\x3\x2b\x27\x00\x02", 12);
       if (_LATB8) {
 	_LATB8 = 0;
       } else {
 	_LATB8 = 1;
       }
+
+      ETMEthernetSendArray(&dan_test_structure, MySocket);
            
-#endif
       // Send the packet
       TCPFlush(MySocket);
       GenericTCPExampleState++;
@@ -668,12 +657,6 @@ void GenericTCPClient(void)
 	  //	w -= TCPGetArray(MySocket, vBuffer, i);
 	  len = TCPGetArray(MySocket, data_buffer, i);
 	  w -= len;
-#if 0 //defined(STACK_USE_UART)
-	  for (k = 0; k < len; k++)
-	    sprintf(sBuffer + 3 * k, "%02x ", data_buffer[k]);
-	  sBuffer[3 * k] = 0;    
-	  putsUART((char*)sBuffer);
-#endif
 				
 	  // putsUART is a blocking call which will slow down the rest of the stack 
 	  // if we shovel the whole TCP RX FIFO into the serial port all at once.  
