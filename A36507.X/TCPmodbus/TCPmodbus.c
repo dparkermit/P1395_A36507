@@ -286,6 +286,12 @@ void TCPmodbus_init(void)
 void TCPmodbus_task(void)
 {
   static DWORD t = 0;
+  _LATB8 = 1;
+
+
+
+
+
 
   // Blink LED0 (right most one) every second.
   if(TickGet() - t >= TICK_SECOND/2ul)
@@ -306,30 +312,10 @@ void TCPmodbus_task(void)
  
   GenericTCPClient();
 
+  _LATB8 = 0;
+
 }
 
-
-#if defined(STACK_USE_UART)
-// Writes an IP address to the LCD display and the UART as available
-void DisplayIPValue(IP_ADDR IPVal)
-{
-  BYTE IPDigit[4];
-  BYTE i;
-
-  for(i = 0; i < sizeof(IP_ADDR); i++)
-    {
-      uitoa((WORD)IPVal.v[i], IPDigit);
-
-      putsUART((char *) IPDigit);
-
-      if(i == sizeof(IP_ADDR)-1)
-	break;
-
-      while(BusyUART());
-      WriteUART('.');
-    }
-}
-#endif
 
 
 /****************************************************************************
@@ -671,7 +657,7 @@ void GenericTCPClient(void)
 	  // Close the socket so it can be used by other modules
 	  TCPDisconnect(MySocket);
 	  MySocket = INVALID_SOCKET;
-	  GenericTCPExampleState--;
+	  GenericTCPExampleState = SM_HOME;
 	}
 	break;
       }
@@ -679,7 +665,7 @@ void GenericTCPClient(void)
       Timer = TickGet();
       
       // Make certain the socket can be written to
-      if(TCPIsPutReady(MySocket) < 125u) {
+      if(TCPIsPutReady(MySocket) < MAX_TX_SIZE) {
 	break;
       }
       
@@ -697,11 +683,6 @@ void GenericTCPClient(void)
       dan_count++;
       
 
-      if (_LATB8) {
-	_LATB8 = 0;
-      } else {
-	_LATB8 = 1;
-      }
       
       // Send the packet
       TCPFlush(MySocket);
@@ -710,7 +691,6 @@ void GenericTCPClient(void)
 
     case SM_PROCESS_RESPONSE:
       // Check to see if the remote node has disconnected from us or sent us any application data
-      // If application data is available, write it to the UART
       if(!TCPIsConnected(MySocket)) {
 	GenericTCPExampleState = SM_DISCONNECT;
 	// Do not break;  We might still have data in the TCP RX FIFO waiting for us
@@ -718,16 +698,31 @@ void GenericTCPClient(void)
       
       // Get count of RX bytes waiting
       w = TCPIsGetReady(MySocket);	
+
+
+      /*      
+      
+      if (w > MAX_TX_SIZE) {
+	w = MAX_TX_SIZE;
+      }
+      
+      len = TCPGetArray(MySocket, data_buffer, w);
+      
+      if ((data_buffer[0] == (modbus_array_index + 1)) && (data_buffer[7] == 0x03)) {
+	
+	modbus_array_index++;
+	if (modbus_array_index >= MODBUS_ARRAY_SIZE) modbus_array_index = 0;	
+      }
+      */
+      
       
       // Obtian and print the server reply
-      i = sizeof(data_buffer)-1;
-      data_buffer[i] = '\0';
-		
+      i = MAX_TX_SIZE-1;
+            
       while(w) {
 	// ignore if incoming data is larger than the data_buffer
-	if(w < i) {
+	if(i > w) {
 	  i = w;
-	  data_buffer[i] = '\0';
 	}
 	//	w -= TCPGetArray(MySocket, vBuffer, i);
 	len = TCPGetArray(MySocket, data_buffer, i);
@@ -739,27 +734,13 @@ void GenericTCPClient(void)
 	    for (i = 0; i < data_buffer[8]; i++) {
 	      modbus_array[modbus_array_index].data[i] = data_buffer[i + 9];
 	    }
-	    /*
-	    if (modbus_array_index == 3) {
-	      // pw
-	      
-	      pw = (modbus_array[modbus_array_index].data[2] << 8) | modbus_array[modbus_array_index].data[3];
-	      pw <<= 16;
-	      pw |= ((modbus_array[modbus_array_index].data[0] << 8) | modbus_array[modbus_array_index].data[1]) & 0xffff;
-	      if (pw == 452873) {
-		super_user_mode = 1;
-	      } else {
-		super_user_mode = 0;
-	      } 
-	      }	  
-	    */
-	    
 	  }
 	  modbus_array_index++;
 	  if (modbus_array_index >= MODBUS_ARRAY_SIZE) modbus_array_index = 0;	
 	}
-      }
-      
+	}
+	
+
       GenericTCPExampleState = SM_SOCKET_OBTAINED; // repeat sending
 	
       break;

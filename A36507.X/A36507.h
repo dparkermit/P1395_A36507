@@ -13,6 +13,7 @@
   CAN1 - Can module
   CAN2 - Reserved in case we need CAN 2
 
+  Timer1 - Used by Ehternet Module
   Timer2 - Used to time CAN transmits - This is configured by ETM CAN module
   Timer3 - Used as timeout on status update receives - This is configured by ETM CAN module
 

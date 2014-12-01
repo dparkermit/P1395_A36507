@@ -12,19 +12,6 @@
 #define __TCP_MODBUS_H
 
 
-#if defined(STACK_USE_UART)
-
-#define BAUD_RATE       (19200)		// bps
-
-void DoUARTConfig(void);
-
-#define SaveAppConfig(a)
-// An actual function defined in MainDemo.c for displaying the current IP
-// address on the UART and/or LCD.
-void DisplayIPValue(IP_ADDR IPVal);
-
-#endif
-
 void GenericTCPClient(void);
 
 void TCPmodbus_init(void);
