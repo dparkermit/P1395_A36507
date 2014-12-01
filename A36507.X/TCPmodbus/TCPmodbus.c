@@ -66,12 +66,24 @@
 #include <p30F6014a.h>
 #include "TCPmodbus.h"
 
+
+#include"../ETM_CAN.h"
+
 // Declare AppConfig structure and some other supporting stack variables
 APP_CONFIG AppConfig;
 static unsigned short wOriginalAppConfigChecksum;    // Checksum of the ROM defaults for AppConfig
 
 #define LED_PUT(a)	do{unsigned char vTemp = (a); LEDOP_IO = vTemp&0x1; LEDA_IO = vTemp&0x4; LEDB_IO = vTemp&0x2;} while(0)
 
+
+void ETMEthernetSendArray(ETMEthernetData data_structure, TCP_SOCKET* socket, unsigned int length);
+unsigned char dan_array[100];
+unsigned int dan_count;
+
+ETMEthernetData    dan_test_structure;
+unsigned int        transaction_number_low = 0;
+
+MODBUS modbus_array[MODBUS_ARRAY_SIZE]; 
 
 static BYTE         data_buffer[MAX_TX_SIZE];
 static BYTE         modbus_array_index = 0;
@@ -340,9 +352,26 @@ void DisplayIPValue(IP_ADDR IPVal)
 ***************************************************************************/
 void InitModbusArray(void)
 {
+
+
+  dan_array[2] = 0x00;
+  dan_array[3] = 0x0A;
+  dan_array[4] = 0x00;
+  dan_array[5] = 0x04;
+  dan_array[6] = 0x00;
+  dan_array[7] = 0x02;
+  dan_array[8] = 0x01;
+  dan_array[9] = 0x00;
+
+  dan_test_structure.data_ptr = &etm_can_heater_magnet_mirror;
+  dan_test_structure.data_length = 180;
+  dan_test_structure.index = 0;
+  dan_test_structure.reference_num = 11000;
+
+
   // write analog block
   modbus_array[0].reference_num = 11000;
-  modbus_array[0].length = 29;
+  modbus_array[0].length = 90;
   modbus_array[0].is_write = 1;
   modbus_array[0].poll_behind_pw = 0;
 
@@ -449,8 +478,61 @@ void InitModbusArray(void)
   Returns:
   	total byte length
 ***************************************************************************/
+
+
+void ETMEthernetSendArray(ETMEthernetData data_structure, TCP_SOCKET* socket, unsigned int length) {
+  unsigned char i;
+  /* 
+     Modbus Header
+     Transaction ID   = WORD
+     Protocal ID      = WORD - Always Zero for modbus TCP
+     Length Field     = WORD - Number of remaining butes in this frame
+     Unit ID          = BYTE - We use 0
+     Function Code    = BYTE - See Modubus TCP specification
+
+     // Additonal Header For Honer PLC
+     Reference Number = WORD
+     Word Data Length = WORD
+     Byte Data Length = BYTE 
+     
+  */
+  
+  data_buffer[0] = data_structure.index + 1;     // transaction hi byte
+  data_buffer[1] = transaction_number_lo;	 // transaction low byte
+  
+  data_buffer[2] = 0;	// protocol hi 
+  data_buffer[3] = 0;	// protocol lo 
+  
+  // byte 4 and 5 for length
+  data_buffer[4] = ((data_structure.data_length + 7) >> 8);
+  data_buffer[5] = (data_structure.data_length + 7) & 0xFF;
+
+  data_buffer[6] = 0;	// unit Id 
+  data_buffer[7] = 0x10; // write function code  
+ 
+  // Reference number
+  data_buffer[8] = (data_structure.reference_num - 1) >> 8;
+  data_buffer[9] = (data_structure.reference_num - 1) & 0xFF;
+
+  // Data Length in Words
+  data_buffer[10] = 0;  // data length in words hi, always 0, assume data length < 256
+  data_buffer[11] = data_structure.data_length >> 1;  // data length in words low
+  
+  // Data length in Bytes
+  data_buffer[12] = data_structure.data_length;       // data length in bytes
+
+  for (i = 0; i < data_structure.data_length; i++) {
+    data_buffer[i + 13] = *data_structure.data_ptr;
+    data_structure.data_ptr++;
+  }
+
+  TCPPutArray(*socket, data_buffer, (data_structure.data_length + 13));  
+}  
+
+
 WORD BuildModbusOutput(void)
 {
+  unsigned int temp;
   BYTE i;
   WORD total_bytes;
     
@@ -463,20 +545,7 @@ WORD BuildModbusOutput(void)
         }
     }
 
-  modbus_array[0].data[0] = 0x01;
-  modbus_array[0].data[1] = 0x10;
-  modbus_array[0].data[2] = 0x02;
-  modbus_array[0].data[3] = 0x20;
-  modbus_array[0].data[4] = 0x03;
-  modbus_array[0].data[5] = 0x30;
-  modbus_array[0].data[6] = 0x04;
-  modbus_array[0].data[7] = 0x40;
-  modbus_array[0].data[8] = 0x05;
-  modbus_array[0].data[9] = 0x50;
 
-	
-
-    
   data_buffer[0] = modbus_array_index + 1;	 // transaction hi byte
   data_buffer[1] = transaction_number_lo;	 // transaction lo byte
   data_buffer[2] = 0;	// protocol hi 
@@ -522,11 +591,13 @@ WORD BuildModbusOutput(void)
       total_bytes = 12; 
         
     }
-    
+
   transaction_number_lo++;
   transaction_number_lo = transaction_number_lo % 256;
-    
+
+
   return (total_bytes);
+  
     
 }
 /*****************************************************************************
@@ -562,6 +633,9 @@ void GenericTCPClient(void)
   WORD				w, len;
   DWORD               pw;
   //    char                sBuffer[250];
+  unsigned int temp;
+    
+      
        
   static DWORD		Timer;
   static TCP_SOCKET	MySocket = INVALID_SOCKET;
@@ -569,9 +643,6 @@ void GenericTCPClient(void)
   {
     SM_HOME = 0,
     SM_SOCKET_OBTAINED,
-#if defined(STACK_USE_SSL_CLIENT)
-    SM_START_SSL,
-#endif
     SM_PROCESS_RESPONSE,
     SM_DISCONNECT,
     SM_DONE
@@ -581,133 +652,114 @@ void GenericTCPClient(void)
     {
     case SM_HOME:
       // Connect a socket to the remote TCP server, 192.168.66.15
-      //			MySocket = TCPOpen(0x0F42A8C0, TCP_OPEN_IP_ADDRESS, 502, TCP_PURPOSE_TCP_MODBUS_CLIENT);
       MySocket = TCPOpen(AppConfig.MyRemIPAddr.Val, TCP_OPEN_IP_ADDRESS, 502, TCP_PURPOSE_TCP_MODBUS_CLIENT);
-			
+      
       // Abort operation if no TCP socket of type TCP_PURPOSE_GENERIC_TCP_CLIENT is available
       // If this ever happens, you need to go add one to TCPIPConfig.h
       if(MySocket == INVALID_SOCKET)
 	break;
-
-#if defined(STACK_USE_UART)
-      putrsUART((ROM char*)"\r\n\r\nConnecting using Microchip TCP API...\r\n");
-#endif
-
-      GenericTCPExampleState++;
+      
+      GenericTCPExampleState = SM_SOCKET_OBTAINED;
       Timer = TickGet();
       break;
 
     case SM_SOCKET_OBTAINED:
       // Wait for the remote server to accept our connection request
-      if(!TCPIsConnected(MySocket))
-	{
-	  // Time out if too much time is spent in this state
-	  if(TickGet()-Timer > 5*TICK_SECOND)
-	    {
-	      // Close the socket so it can be used by other modules
-	      TCPDisconnect(MySocket);
-	      MySocket = INVALID_SOCKET;
-	      GenericTCPExampleState--;
-	    }
-	  break;
+      if(!TCPIsConnected(MySocket)) {
+	// Time out if too much time is spent in this state
+	if(TickGet()-Timer > 5*TICK_SECOND) {
+	  // Close the socket so it can be used by other modules
+	  TCPDisconnect(MySocket);
+	  MySocket = INVALID_SOCKET;
+	  GenericTCPExampleState--;
 	}
-
-      Timer = TickGet();
-			
-      // Make certain the socket can be written to
-      if(TCPIsPutReady(MySocket) < 125u)
 	break;
-			
-#if 0
-      // Place the application protocol data into the transmit buffer.  For this example, we are connected to an HTTP server, so we'll send an HTTP GET request.
-      TCPPutROMString(MySocket, (ROM BYTE*)"GET ");
-      TCPPutROMString(MySocket, RemoteURL);
-      TCPPutROMString(MySocket, (ROM BYTE*)" HTTP/1.0\r\nHost: ");
-      TCPPutString(MySocket, ServerName);
-      TCPPutROMString(MySocket, (ROM BYTE*)"\r\nConnection: close\r\n\r\n");
-#else
-      // TCPPutArray(MySocket,  (BYTE *)"\xa\x9d\x0\x0\x0\x6\xff\x3\x2b\x27\x00\x02", 12);
+      }
+      
+      Timer = TickGet();
+      
+      // Make certain the socket can be written to
+      if(TCPIsPutReady(MySocket) < 125u) {
+	break;
+      }
+      
+      
       len = BuildModbusOutput();
-      TCPPutArray(MySocket,  data_buffer, len);
+      if (modbus_array_index != 0) {
+	TCPPutArray(MySocket,  data_buffer, len);
+      } else {
+	temp = dan_count;
+	dan_array[1] = temp & 0xFF;
+	temp >>= 8;
+	dan_array[0] = temp & 0xFF;
+	ETMEthernetSendArray(dan_test_structure, &MySocket, len);
+      }
+      dan_count++;
+      
 
       if (_LATB8) {
 	_LATB8 = 0;
       } else {
 	_LATB8 = 1;
       }
-           
-#endif
+      
       // Send the packet
       TCPFlush(MySocket);
-      GenericTCPExampleState++;
+      GenericTCPExampleState = SM_PROCESS_RESPONSE;
       break;
 
     case SM_PROCESS_RESPONSE:
       // Check to see if the remote node has disconnected from us or sent us any application data
       // If application data is available, write it to the UART
-      if(!TCPIsConnected(MySocket))
-	{
-	  GenericTCPExampleState = SM_DISCONNECT;
-	  // Do not break;  We might still have data in the TCP RX FIFO waiting for us
-	}
-	
+      if(!TCPIsConnected(MySocket)) {
+	GenericTCPExampleState = SM_DISCONNECT;
+	// Do not break;  We might still have data in the TCP RX FIFO waiting for us
+      }
+      
       // Get count of RX bytes waiting
       w = TCPIsGetReady(MySocket);	
-	
+      
       // Obtian and print the server reply
       i = sizeof(data_buffer)-1;
       data_buffer[i] = '\0';
 		
-      while(w)	// ignore if incoming data is larger than the data_buffer
-	{
-	  if(w < i)
-	    {
-	      i = w;
-	      data_buffer[i] = '\0';
-	    }
-	  //	w -= TCPGetArray(MySocket, vBuffer, i);
-	  len = TCPGetArray(MySocket, data_buffer, i);
-	  w -= len;
-#if 0 //defined(STACK_USE_UART)
-	  for (k = 0; k < len; k++)
-	    sprintf(sBuffer + 3 * k, "%02x ", data_buffer[k]);
-	  sBuffer[3 * k] = 0;    
-	  putsUART((char*)sBuffer);
-#endif
-				
-	  // putsUART is a blocking call which will slow down the rest of the stack 
-	  // if we shovel the whole TCP RX FIFO into the serial port all at once.  
-	  // Therefore, let's break out after only one chunk most of the time.  The 
-	  // only exception is when the remote node disconncets from us and we need to 
-	  // use up all the data before changing states.
-			
-	  //	if(GenericTCPExampleState == SM_PROCESS_RESPONSE)  break;
-	  /* put into modbus_array */
-	  if (data_buffer[0] == (modbus_array_index + 1))
-	    {
-	      if (data_buffer[7] == 0x03 && data_buffer[8] == (modbus_array[modbus_array_index].length * 2))
-		{ // read
-		  for (i = 0; i < data_buffer[8]; i++)
-		    modbus_array[modbus_array_index].data[i] = data_buffer[i + 9];
-
-		  if (modbus_array_index == 3) // pw
-		    {
-		      pw = (modbus_array[modbus_array_index].data[2] << 8) | modbus_array[modbus_array_index].data[3];
-		      pw <<= 16;
-		      pw |= ((modbus_array[modbus_array_index].data[0] << 8) | modbus_array[modbus_array_index].data[1]) & 0xffff;
-		      if (pw == 452873) 
-			super_user_mode = 1;
-		      else
-			super_user_mode = 0;
-                                
-		    }
-		}
-	    }
-            
-	  modbus_array_index++;
-	  if (modbus_array_index >= MODBUS_ARRAY_SIZE) modbus_array_index = 0;
+      while(w) {
+	// ignore if incoming data is larger than the data_buffer
+	if(w < i) {
+	  i = w;
+	  data_buffer[i] = '\0';
 	}
-    
+	//	w -= TCPGetArray(MySocket, vBuffer, i);
+	len = TCPGetArray(MySocket, data_buffer, i);
+	w -= len;
+	
+	if (data_buffer[0] == (modbus_array_index + 1)) {
+	  if (data_buffer[7] == 0x03 && data_buffer[8] == (modbus_array[modbus_array_index].length * 2)) { 
+	    // read
+	    for (i = 0; i < data_buffer[8]; i++) {
+	      modbus_array[modbus_array_index].data[i] = data_buffer[i + 9];
+	    }
+	    /*
+	    if (modbus_array_index == 3) {
+	      // pw
+	      
+	      pw = (modbus_array[modbus_array_index].data[2] << 8) | modbus_array[modbus_array_index].data[3];
+	      pw <<= 16;
+	      pw |= ((modbus_array[modbus_array_index].data[0] << 8) | modbus_array[modbus_array_index].data[1]) & 0xffff;
+	      if (pw == 452873) {
+		super_user_mode = 1;
+	      } else {
+		super_user_mode = 0;
+	      } 
+	      }	  
+	    */
+	    
+	  }
+	  modbus_array_index++;
+	  if (modbus_array_index >= MODBUS_ARRAY_SIZE) modbus_array_index = 0;	
+	}
+      }
+      
       GenericTCPExampleState = SM_SOCKET_OBTAINED; // repeat sending
 	
       break;

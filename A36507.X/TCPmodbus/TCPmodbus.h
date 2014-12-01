@@ -34,8 +34,8 @@ void TCPmodbus_task(void);
 
 
 
-#define MAX_TX_SIZE    125
-#define MAX_DATA_SIZE  100	// leave some room for modbus header
+#define MAX_TX_SIZE    255
+#define MAX_DATA_SIZE  200	// leave some room for modbus header
 #define MODBUS_ARRAY_SIZE  15
 
 typedef struct __attribute__((__packed__)) modbusStruct 
@@ -55,16 +55,16 @@ typedef struct {
   unsigned char  data_length;          // This is the length (in bytes) of the array that we want to transfer
   unsigned char  index;                // This is the index that the GUI is expecting
   unsigned int   reference_num;        // This is the register address for the data we are updating on the GUI
-} ETMEthernetArray;
+} ETMEthernetData;
   
 
 
 
-#ifdef IS_MODBUS_MAIN
-MODBUS modbus_array[MODBUS_ARRAY_SIZE]; 
-#else					 
+//#ifdef IS_MODBUS_MAIN
+//MODBUS modbus_array[MODBUS_ARRAY_SIZE]; 
+//#else					 
 extern MODBUS modbus_array[MODBUS_ARRAY_SIZE]; 
-#endif
+//#endif
 
 extern void InitModbusArray(void);
 

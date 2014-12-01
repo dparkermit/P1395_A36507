@@ -134,3 +134,13 @@ void InitializeA36507(void) {
   ETMEEPromConfigureDevice(&U5_FM24C64B, EEPROM_I2C_ADDRESS_0, I2C_PORT, EEPROM_SIZE_8K_BYTES, FCY_CLK, ETM_I2C_400K_BAUD);
   
 }
+
+
+
+void __attribute__((interrupt, no_auto_psv)) _DefaultInterrupt(void) {
+  // Clearly should not get here without a major problem occuring
+  // DPARKER do something to save the state into a RAM location that is not re-initialized and then reset
+  Nop();
+  Nop();
+  __asm__ ("Reset");
+}
