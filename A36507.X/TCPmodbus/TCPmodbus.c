@@ -668,7 +668,8 @@ void GenericTCPClient(void)
       if(TCPIsPutReady(MySocket) < MAX_TX_SIZE) {
 	break;
       }
-      
+
+
       
       len = BuildModbusOutput();
       if (modbus_array_index != 0) {
@@ -678,14 +679,18 @@ void GenericTCPClient(void)
 	dan_array[1] = temp & 0xFF;
 	temp >>= 8;
 	dan_array[0] = temp & 0xFF;
+	dan_count++;
+	etm_can_heater_magnet_mirror.status_data.data_word_A = dan_count;
+	_LATB9 = 1;
 	ETMEthernetSendArray(dan_test_structure, &MySocket, len);
       }
-      dan_count++;
+
       
 
       
       // Send the packet
       TCPFlush(MySocket);
+      _LATB9 = 0;
       GenericTCPExampleState = SM_PROCESS_RESPONSE;
       break;
 
@@ -699,26 +704,33 @@ void GenericTCPClient(void)
       // Get count of RX bytes waiting
       w = TCPIsGetReady(MySocket);	
 
-
-      /*      
-      
-      if (w > MAX_TX_SIZE) {
-	w = MAX_TX_SIZE;
-      }
-      
-      len = TCPGetArray(MySocket, data_buffer, w);
-      
-      if ((data_buffer[0] == (modbus_array_index + 1)) && (data_buffer[7] == 0x03)) {
+      while(w) {
+	if (w > (MAX_TX_SIZE-1)) {
+	  w = (MAX_TX_SIZE-1);
+	}
 	
-	modbus_array_index++;
-	if (modbus_array_index >= MODBUS_ARRAY_SIZE) modbus_array_index = 0;	
+	len = TCPGetArray(MySocket, data_buffer, w);
+	w -= len;
+	
+	if (data_buffer[0] == (modbus_array_index + 1)) {
+	  if (data_buffer[7] == 0x03) {
+	    for (i = 0; i < data_buffer[8]; i++) {
+	      modbus_array[modbus_array_index].data[i] = data_buffer[i + 9];
+	    } 
+	  }
+	  modbus_array_index++;
+	  if (modbus_array_index >= MODBUS_ARRAY_SIZE) {
+	    modbus_array_index = 0;
+	  }	
+	}
       }
-      */
       
       
+      /*
+
       // Obtian and print the server reply
       i = MAX_TX_SIZE-1;
-            
+      
       while(w) {
 	// ignore if incoming data is larger than the data_buffer
 	if(i > w) {
@@ -738,11 +750,11 @@ void GenericTCPClient(void)
 	  modbus_array_index++;
 	  if (modbus_array_index >= MODBUS_ARRAY_SIZE) modbus_array_index = 0;	
 	}
-	}
-	
+      }
+      */
 
       GenericTCPExampleState = SM_SOCKET_OBTAINED; // repeat sending
-	
+
       break;
 	
     case SM_DISCONNECT:

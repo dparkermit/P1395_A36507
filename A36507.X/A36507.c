@@ -130,7 +130,7 @@ void InitializeA36507(void) {
   _TRISA7 = 0;
   _TRISG13 = 0;
   _TRISB8 = 0;
-
+  _TRISB9 = 0;
   ETMEEPromConfigureDevice(&U5_FM24C64B, EEPROM_I2C_ADDRESS_0, I2C_PORT, EEPROM_SIZE_8K_BYTES, FCY_CLK, ETM_I2C_400K_BAUD);
   
 }
