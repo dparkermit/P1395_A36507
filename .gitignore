@@ -12,6 +12,9 @@
 *.production.elf
 
 
+# codewright
+*.bak
+
 # Emacs Files to Ignore
 *~
 *#
