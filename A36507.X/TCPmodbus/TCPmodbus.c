@@ -443,7 +443,7 @@ void InitModbusData(void)
     etm_can_gun_driver_mirror.status_data.status_word_0 = 0x6666;
     etm_can_magnetron_current_mirror.status_data.status_word_0 = 0x7777;
     etm_can_pulse_sync_mirror.status_data.status_word_0 = 0x8888;
- //   etm_can_ethernet_board_data.status_data.status_word_0 = 0x9999;
+    etm_can_ethernet_board_data.status_data->status_word_0 = 0x9999;
 
 
    #endif
@@ -489,12 +489,49 @@ WORD BuildModbusOutput_write_boards(ETMEthernetTXDataStructure* eth_tx_ptr)
 	    data_buffer[11] = total_bytes >> 1;     // data length in words lo
 	    data_buffer[12] = total_bytes & 0xff;   // data length in bytes
 
+#if 0        
         byte_ptr = (unsigned char *)(&eth_tx_ptr->status_data->status_word_0);
 	    for (i = 0; i < total_bytes; i++, byte_ptr++)	
 	    {
           	data_buffer[i + 13] = *byte_ptr;
         }
 	    total_bytes = i + 13;
+#else
+        byte_ptr = (unsigned char *)eth_tx_ptr->status_data;
+	    for (i = 0; i < sizeof(ETMCanStatusRegister); i++, byte_ptr++)
+        {
+        	data_buffer[i + 13] = *byte_ptr;
+        }
+        total_bytes = i + 13;
+        	
+        byte_ptr = (unsigned char *)eth_tx_ptr->debug_data;
+	    for (i = 0; i < sizeof(ETMCanSystemDebugData); i++, byte_ptr++)
+        {
+        	data_buffer[i + total_bytes] = *byte_ptr;
+        }	
+	    total_bytes += i;
+
+        byte_ptr = (unsigned char *)eth_tx_ptr->can_status;
+	    for (i = 0; i < sizeof(ETMCanCanStatus); i++, byte_ptr++)
+        {
+        	data_buffer[i + total_bytes] = *byte_ptr;
+        }	
+	    total_bytes += i;
+
+        byte_ptr = (unsigned char *)eth_tx_ptr->configuration;
+	    for (i = 0; i < sizeof(ETMCanAgileConfig); i++, byte_ptr++)
+        {
+        	data_buffer[i + total_bytes] = *byte_ptr;
+        }	
+	    total_bytes += i;        
+        
+        byte_ptr = (unsigned char *)eth_tx_ptr->custom_data;
+	    for (i = 0; i < (eth_tx_ptr->custom_data_word_count * 2); i++, byte_ptr++)
+        {
+        	data_buffer[i + total_bytes] = *byte_ptr;
+        }	
+	    total_bytes += i;
+#endif        
                  
 	     
        }
