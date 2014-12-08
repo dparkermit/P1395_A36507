@@ -408,17 +408,18 @@ void InitModbusData(void)
         eth_tx_pulse_sync.custom_data_word_count = 13;
         eth_tx_pulse_sync.data_identification = 8;
  		   
-   
-    eth_tx_ethernet_board.status_data   = etm_can_ethernet_board_data.status_data;
-   	eth_tx_ethernet_board.debug_data    = etm_can_ethernet_board_data.debug_data;
-   	eth_tx_ethernet_board.can_status    = etm_can_ethernet_board_data.can_status;
-   	eth_tx_ethernet_board.configuration = etm_can_ethernet_board_data.configuration;
+	
+	eth_tx_ethernet_board.status_data   = &etm_can_status_register;
+   	eth_tx_ethernet_board.debug_data    = &etm_can_system_debug_data;
+   	eth_tx_ethernet_board.can_status    = &etm_can_can_status;
+   	eth_tx_ethernet_board.configuration = &etm_can_my_configuration;
    	eth_tx_ethernet_board.custom_data   = &etm_can_ethernet_board_data.fault_status_bits;
-    eth_tx_ethernet_board.custom_data_word_count = 5; 
-    eth_tx_ethernet_board.data_identification = 9;
+	eth_tx_ethernet_board.custom_data_word_count = 5; 
+	eth_tx_ethernet_board.data_identification = 9;
 
  		   
   #if 1 
+	/*
    // setup some fake data
    etm_can_hv_lamdba_mirror.status_data.status_word_0	= 0x1111;
    etm_can_hv_lamdba_mirror.status_data.status_word_1	= 0x3344;
@@ -444,7 +445,7 @@ void InitModbusData(void)
     etm_can_magnetron_current_mirror.status_data.status_word_0 = 0x7777;
     etm_can_pulse_sync_mirror.status_data.status_word_0 = 0x8888;
     etm_can_ethernet_board_data.status_data->status_word_0 = 0x9999;
-
+	*/
 
    #endif
 }
@@ -773,6 +774,11 @@ void GenericTCPClient(void)
 		w -= len;
 	
     	if (data_buffer[6] == modbus_send_index) {
+
+
+	  if (data_buffer[7] == MODBUS_RD_COMMAND) {
+	    
+	  }
     
    #if 0 // process recd data
 		  if (data_buffer[7] == 0x03) {
@@ -786,6 +792,7 @@ void GenericTCPClient(void)
        //    GenericTCPExampleState = SM_SOCKET_OBTAINED; // repeat sending
 		} // if (data_buffer[0] == (modbus_array_index + 1))
     
+
          GenericTCPExampleState = SM_SOCKET_OBTAINED; // repeat sending
 
     }  //  while(w)	
