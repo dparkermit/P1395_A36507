@@ -76,6 +76,7 @@ typedef __attribute__((__deprecated__)) DWORD TICK;
 // Represents one hour in Ticks
 #define TICK_HOUR				((QWORD)TICKS_PER_SECOND*3600ull)
 
+#define TICK_100MS             	((QWORD)(TICKS_PER_SECOND/10))
 
 void TickInit(void);
 DWORD TickGet(void);

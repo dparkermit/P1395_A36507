@@ -30,7 +30,6 @@
           <itemPath>TCPmodbus/TCPIPStack/TCPIPStack/TCPIPENC28.h</itemPath>
         </logicalFolder>
         <itemPath>TCPmodbus/HardwareProfile.h</itemPath>
-        <itemPath>TCPmodbus/MainDemo.h</itemPath>
         <itemPath>TCPmodbus/TCPmodbus.h</itemPath>
       </logicalFolder>
       <itemPath>A36507.h</itemPath>

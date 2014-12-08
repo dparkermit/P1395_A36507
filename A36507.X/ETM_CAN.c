@@ -11,10 +11,6 @@ void ETMCanCheckForStatusChange(void);
 // Public Buffers
 ETMCanMessageBuffer etm_can_rx_message_buffer;
 ETMCanMessageBuffer etm_can_tx_message_buffer;
-#ifdef __ETM_CAN_MASTER_MODULE
-ETMCanMessageBuffer etm_can_rx_data_log_buffer;
-ETMCanRamMirrorEthernetBoard     etm_can_ethernet_board_data;
-#endif
 
 // Public Variables
 unsigned int etm_can_next_pulse_level;
@@ -30,6 +26,11 @@ ETMCanSystemDebugData etm_can_system_debug_data;
 ETMCanStatusRegister  etm_can_status_register;
 ETMCanAgileConfig     etm_can_my_configuration;
 ETMCanCanStatus       etm_can_can_status;
+
+#ifdef __ETM_CAN_MASTER_MODULE
+ETMCanMessageBuffer etm_can_rx_data_log_buffer;
+ETMCanRamMirrorEthernetBoard     etm_can_ethernet_board_data;
+#endif
 
 // Private Functions
 void ETMCanProcessMessage(void);

@@ -64,10 +64,10 @@
 #include "TCPIPStack/TCPIPStack/TCPIP.h"
 
 #include <p30F6014a.h>
+
+
+#include "../ETM_CAN.h"
 #include "TCPmodbus.h"
-
-
-#include"../ETM_CAN.h"
 
 // Declare AppConfig structure and some other supporting stack variables
 APP_CONFIG AppConfig;
@@ -75,20 +75,27 @@ static unsigned short wOriginalAppConfigChecksum;    // Checksum of the ROM defa
 
 #define LED_PUT(a)	do{unsigned char vTemp = (a); LEDOP_IO = vTemp&0x1; LEDA_IO = vTemp&0x4; LEDB_IO = vTemp&0x2;} while(0)
 
+void GenericTCPClient(void);
+void InitModbusData(void);
 
-void ETMEthernetSendArray(ETMEthernetData data_structure, TCP_SOCKET* socket, unsigned int length);
-unsigned char dan_array[100];
-unsigned int dan_count;
+ETMEthernetTXDataStructure   eth_tx_hv_lamdba;
+ETMEthernetTXDataStructure   eth_tx_ion_pump;
+ETMEthernetTXDataStructure   eth_tx_afc;
+ETMEthernetTXDataStructure   eth_tx_cooling;
+ETMEthernetTXDataStructure   eth_tx_heater_magnet;
+ETMEthernetTXDataStructure   eth_tx_gun_driver;
+ETMEthernetTXDataStructure   eth_tx_magnetron_current;
+ETMEthernetTXDataStructure   eth_tx_pulse_sync;
+ETMEthernetTXDataStructure   eth_tx_ethernet_board;
 
-ETMEthernetData    dan_test_structure;
-unsigned int        transaction_number_low = 0;
 
-MODBUS modbus_array[MODBUS_ARRAY_SIZE]; 
 
 static BYTE         data_buffer[MAX_TX_SIZE];
-static BYTE         modbus_array_index = 0;
-static BYTE         super_user_mode = 0;
-static WORD         transaction_number_lo = 0;
+static BYTE         modbus_send_index = 0;
+//static BYTE         super_user_mode = 0;
+static WORD         transaction_number = 0;
+
+static BYTE         modbus_cmd_need_repeat = 0;  
 
 /****************************************************************************
   Function:
@@ -265,7 +272,7 @@ void TCPmodbus_init(void)
   // Initialize Stack and application related NV variables into AppConfig.
   InitAppConfig();
     
-  InitModbusArray();
+  InitModbusData();
 
   // Initiates board setup process if button is depressed 
   // on startup
@@ -290,9 +297,6 @@ void TCPmodbus_task(void)
 
 
 
-
-
-
   // Blink LED0 (right most one) every second.
   if(TickGet() - t >= TICK_SECOND/2ul)
     {
@@ -307,7 +311,7 @@ void TCPmodbus_task(void)
         
   
   // This tasks invokes each of the core stack application tasks
-  StackApplications();
+ // StackApplications();  // don't need
 
  
   GenericTCPClient();
@@ -320,10 +324,11 @@ void TCPmodbus_task(void)
 
 /****************************************************************************
   Function:
-    static void InitModbusArray(void)
+    static void InitModbusData(void)
 
   Description:
-    This routine initializes modbus_array
+    This routine initializes modbus related data
+ 
   Precondition:
     None
 
@@ -336,254 +341,285 @@ void TCPmodbus_task(void)
   Remarks:
     None
 ***************************************************************************/
-void InitModbusArray(void)
+void InitModbusData(void)
 {
+   	eth_tx_hv_lamdba.status_data   = &etm_can_hv_lamdba_mirror.status_data;							
+   	eth_tx_hv_lamdba.debug_data    = &etm_can_hv_lamdba_mirror.debug_data;							
+   	eth_tx_hv_lamdba.can_status    = &etm_can_hv_lamdba_mirror.can_status;							
+   	eth_tx_hv_lamdba.configuration = &etm_can_hv_lamdba_mirror.configuration;						
+																									
+   	eth_tx_hv_lamdba.custom_data   = &etm_can_hv_lamdba_mirror.hvlambda_high_energy_set_point;		
+    eth_tx_hv_lamdba.custom_data_word_count = 5; 													
+    eth_tx_hv_lamdba.data_identification = 1;
 
+   	eth_tx_ion_pump.status_data   = &etm_can_ion_pump_mirror.status_data;
+   	eth_tx_ion_pump.debug_data    = &etm_can_ion_pump_mirror.debug_data;
+   	eth_tx_ion_pump.can_status    = &etm_can_ion_pump_mirror.can_status;
+   	eth_tx_ion_pump.configuration = &etm_can_ion_pump_mirror.configuration;
+   	eth_tx_ion_pump.custom_data = &etm_can_ion_pump_mirror.ionpump_readback_ion_pump_volage_monitor;
+    eth_tx_ion_pump.custom_data_word_count = 4; 
+    eth_tx_ion_pump.data_identification = 2;
+ 
+   	eth_tx_afc.status_data   = &etm_can_afc_mirror.status_data;
+   	eth_tx_afc.debug_data    = &etm_can_afc_mirror.debug_data;
+   	eth_tx_afc.can_status    = &etm_can_afc_mirror.can_status;
+   	eth_tx_afc.configuration = &etm_can_afc_mirror.configuration;
+   	eth_tx_afc.custom_data = &etm_can_afc_mirror.afc_home_position;
+    eth_tx_afc.custom_data_word_count = 5; 
+    eth_tx_afc.data_identification = 3;
+ 		   
+    eth_tx_cooling.status_data   = &etm_can_cooling_mirror.status_data;
+   	eth_tx_cooling.debug_data    = &etm_can_cooling_mirror.debug_data;
+   	eth_tx_cooling.can_status    = &etm_can_cooling_mirror.can_status;
+   	eth_tx_cooling.configuration = &etm_can_cooling_mirror.configuration;
+   	eth_tx_cooling.custom_data = &etm_can_cooling_mirror.cool_readback_hvps_coolant_flow;
+    eth_tx_cooling.custom_data_word_count = 12; 
+    eth_tx_cooling.data_identification = 4;
 
-  dan_array[2] = 0x00;
-  dan_array[3] = 0x0A;
-  dan_array[4] = 0x00;
-  dan_array[5] = 0x04;
-  dan_array[6] = 0x00;
-  dan_array[7] = 0x02;
-  dan_array[8] = 0x01;
-  dan_array[9] = 0x00;
+   	eth_tx_heater_magnet.status_data   = &etm_can_heater_magnet_mirror.status_data;
+   	eth_tx_heater_magnet.debug_data    = &etm_can_heater_magnet_mirror.debug_data;
+   	eth_tx_heater_magnet.can_status    = &etm_can_heater_magnet_mirror.can_status;
+   	eth_tx_heater_magnet.configuration = &etm_can_heater_magnet_mirror.configuration;
+   	eth_tx_heater_magnet.custom_data   = &etm_can_heater_magnet_mirror.htrmag_magnet_current_set_point;
+    eth_tx_heater_magnet.custom_data_word_count = 10; 
+    eth_tx_heater_magnet.data_identification = 5;
 
-  dan_test_structure.data_ptr = &etm_can_heater_magnet_mirror;
-  dan_test_structure.data_length = 180;
-  dan_test_structure.index = 0;
-  dan_test_structure.reference_num = 11000;
-
-
-  // write analog block
-  modbus_array[0].reference_num = 11000;
-  modbus_array[0].length = 90;
-  modbus_array[0].is_write = 1;
-  modbus_array[0].poll_behind_pw = 0;
-
-  // write fault&event block
-  modbus_array[1].reference_num = 12000;
-  modbus_array[1].length = 5;
-  modbus_array[1].is_write = 1;
-  modbus_array[1].poll_behind_pw = 0;
-
-  // write energy param
-  modbus_array[2].reference_num = 11100;
-  modbus_array[2].length = 23;
-  modbus_array[2].is_write = 1;
-  modbus_array[2].poll_behind_pw = 1;
-
-  // rd pw
-  modbus_array[3].reference_num = 11048;
-  modbus_array[3].length = 2;
-  modbus_array[3].is_write = 0;
-  modbus_array[3].poll_behind_pw = 0;
-
-  // rd Ekset
-  modbus_array[4].reference_num = 11050;
-  modbus_array[4].length = 1;
-  modbus_array[4].is_write = 0;
-  modbus_array[4].poll_behind_pw = 1;
-    
-  // rd fault mask, AFC pos
-  modbus_array[5].reference_num = 11095;
-  modbus_array[5].length = 2;
-  modbus_array[5].is_write = 0;
-  modbus_array[5].poll_behind_pw = 1;
-    
-  // rd energy cmds
-  modbus_array[6].reference_num = 11099;
-  modbus_array[6].length = 1;
-  modbus_array[6].is_write = 0;
-  modbus_array[6].poll_behind_pw = 1;
-    
-  // rd Ifset
-  modbus_array[7].reference_num = 11051;
-  modbus_array[7].length = 1;
-  modbus_array[7].is_write = 0;
-  modbus_array[7].poll_behind_pw = 1;
-
-  // rd AFC home
-  modbus_array[8].reference_num = 11056;
-  modbus_array[8].length = 1;
-  modbus_array[8].is_write = 0;
-  modbus_array[8].poll_behind_pw = 1;
-
-  // rd AFC param select
-  modbus_array[9].reference_num = 11057;
-  modbus_array[9].length = 1;
-  modbus_array[9].is_write = 0;
-  modbus_array[9].poll_behind_pw = 1;
-    
-  // rd sleep delay
-  modbus_array[10].reference_num = 11058;
-  modbus_array[10].length = 1;
-  modbus_array[10].is_write = 0;
-  modbus_array[10].poll_behind_pw = 1;
-    
-  // rd cabT limit
-  modbus_array[11].reference_num = 11061;
-  modbus_array[11].length = 1;
-  modbus_array[11].is_write = 0;
-  modbus_array[11].poll_behind_pw = 1;
-    
-  // rd htd
-  modbus_array[12].reference_num = 11062;
-  modbus_array[12].length = 1;
-  modbus_array[12].is_write = 0;
-  modbus_array[12].poll_behind_pw = 1;
-    
-  // read energy param
-  modbus_array[13].reference_num = 11100;
-  modbus_array[13].length = 23;
-  modbus_array[13].is_write = 0;
-  modbus_array[13].poll_behind_pw = 1;
-
+    eth_tx_gun_driver.status_data   = &etm_can_gun_driver_mirror.status_data;
+   	eth_tx_gun_driver.debug_data    = &etm_can_gun_driver_mirror.debug_data;
+   	eth_tx_gun_driver.can_status    = &etm_can_gun_driver_mirror.can_status;
+   	eth_tx_gun_driver.configuration = &etm_can_gun_driver_mirror.configuration;
+   	eth_tx_gun_driver.custom_data   = &etm_can_gun_driver_mirror.gun_high_energy_pulse_top_voltage_set_point;
+    eth_tx_gun_driver.custom_data_word_count = 16; 
+    eth_tx_gun_driver.data_identification = 6;
+    	   
+    eth_tx_magnetron_current.status_data   = &etm_can_magnetron_current_mirror.status_data;
+   	eth_tx_magnetron_current.debug_data    = &etm_can_magnetron_current_mirror.debug_data;
+   	eth_tx_magnetron_current.can_status    = &etm_can_magnetron_current_mirror.can_status;
+   	eth_tx_magnetron_current.configuration = &etm_can_magnetron_current_mirror.configuration;
+   	eth_tx_magnetron_current.custom_data   = &etm_can_magnetron_current_mirror.magmon_readback_spare;
+    eth_tx_magnetron_current.custom_data_word_count = 12; 
+    eth_tx_magnetron_current.data_identification = 7;
+ 		   
+   	eth_tx_pulse_sync.status_data   = &etm_can_pulse_sync_mirror.status_data;
+   	eth_tx_pulse_sync.debug_data    = &etm_can_pulse_sync_mirror.debug_data;
+   	eth_tx_pulse_sync.can_status    = &etm_can_pulse_sync_mirror.can_status;
+   	eth_tx_pulse_sync.configuration = &etm_can_pulse_sync_mirror.configuration;
+   	eth_tx_pulse_sync.custom_data   = (unsigned int *)&etm_can_pulse_sync_mirror.psync_grid_delay_high_intensity_3;
+        eth_tx_pulse_sync.custom_data_word_count = 13;
+        eth_tx_pulse_sync.data_identification = 8;
+ 		   
    
-  // rd digital cmds
-  modbus_array[14].reference_num = 11047;
-  modbus_array[14].length = 1;
-  modbus_array[14].is_write = 0;
-  modbus_array[14].poll_behind_pw = 0;
-    
+    eth_tx_ethernet_board.status_data   = etm_can_ethernet_board_data.status_data;
+   	eth_tx_ethernet_board.debug_data    = etm_can_ethernet_board_data.debug_data;
+   	eth_tx_ethernet_board.can_status    = etm_can_ethernet_board_data.can_status;
+   	eth_tx_ethernet_board.configuration = etm_can_ethernet_board_data.configuration;
+   	eth_tx_ethernet_board.custom_data   = &etm_can_ethernet_board_data.fault_status_bits;
+    eth_tx_ethernet_board.custom_data_word_count = 5; 
+    eth_tx_ethernet_board.data_identification = 9;
+
+ 		   
+  #if 1 
+   // setup some fake data
+   etm_can_hv_lamdba_mirror.status_data.status_word_0	= 0x1111;
+   etm_can_hv_lamdba_mirror.status_data.status_word_1	= 0x3344;
+   etm_can_hv_lamdba_mirror.status_data.data_word_A	= 0x5566;
+   etm_can_hv_lamdba_mirror.status_data.data_word_B	= 0x7788;
+   etm_can_hv_lamdba_mirror.status_data.status_word_0_inhbit_mask = 0x9911;
+   etm_can_hv_lamdba_mirror.status_data.status_word_1_fault_mask = 0x1155;
+   
+   etm_can_hv_lamdba_mirror.hvlambda_high_energy_set_point = 0x1122;
+   etm_can_hv_lamdba_mirror.hvlambda_readback_base_plate_temp = 0x5599;
+
+   etm_can_ion_pump_mirror.status_data.status_word_0	= 0x2222;
+   etm_can_ion_pump_mirror.status_data.status_word_1	= 0x3344;
+   etm_can_ion_pump_mirror.status_data.data_word_A	= 0x5566;
+   etm_can_ion_pump_mirror.status_data.data_word_B	= 0x7788;
+   etm_can_ion_pump_mirror.status_data.status_word_0_inhbit_mask = 0x9911;
+   etm_can_ion_pump_mirror.status_data.status_word_1_fault_mask = 0x2266;
+   
+    etm_can_afc_mirror.status_data.status_word_0 = 0x3333;
+    etm_can_cooling_mirror.status_data.status_word_0 = 0x4444;
+    etm_can_heater_magnet_mirror.status_data.status_word_0 = 0x5555;
+    etm_can_gun_driver_mirror.status_data.status_word_0 = 0x6666;
+    etm_can_magnetron_current_mirror.status_data.status_word_0 = 0x7777;
+    etm_can_pulse_sync_mirror.status_data.status_word_0 = 0x8888;
+ //   etm_can_ethernet_board_data.status_data.status_word_0 = 0x9999;
 
 
+   #endif
 }
-/*****************************************************************************
-  Function: BuildModbusOutput(void)
+
+
+/****************************************************************************
+  Function:
+    BuildModbusOutput_write_boards(void)
 
   Description:
-  		change global data_buffer, modbus_array_index
-
-  Precondition:
-	None
-    
-  Parameters:
-	Index
-
-  Returns:
-  	total byte length
-***************************************************************************/
-
-
-void ETMEthernetSendArray(ETMEthernetData data_structure, TCP_SOCKET* socket, unsigned int length) {
-  unsigned char i;
-  /* 
-     Modbus Header
-     Transaction ID   = WORD
-     Protocal ID      = WORD - Always Zero for modbus TCP
-     Length Field     = WORD - Number of remaining butes in this frame
-     Unit ID          = BYTE - We use 0
-     Function Code    = BYTE - See Modubus TCP specification
-
-     // Additonal Header For Honer PLC
-     Reference Number = WORD
-     Word Data Length = WORD
-     Byte Data Length = BYTE 
-     
-  */
-  
-  data_buffer[0] = data_structure.index + 1;     // transaction hi byte
-  data_buffer[1] = transaction_number_lo;	 // transaction low byte
-  
-  data_buffer[2] = 0;	// protocol hi 
-  data_buffer[3] = 0;	// protocol lo 
-  
-  // byte 4 and 5 for length
-  data_buffer[4] = ((data_structure.data_length + 7) >> 8);
-  data_buffer[5] = (data_structure.data_length + 7) & 0xFF;
-
-  data_buffer[6] = 0;	// unit Id 
-  data_buffer[7] = 0x10; // write function code  
+    Build modbus command, return 0 if we don't want to send anything
  
-  // Reference number
-  data_buffer[8] = (data_structure.reference_num - 1) >> 8;
-  data_buffer[9] = (data_structure.reference_num - 1) & 0xFF;
-
-  // Data Length in Words
-  data_buffer[10] = 0;  // data length in words hi, always 0, assume data length < 256
-  data_buffer[11] = data_structure.data_length >> 1;  // data length in words low
-  
-  // Data length in Bytes
-  data_buffer[12] = data_structure.data_length;       // data length in bytes
-
-  for (i = 0; i < data_structure.data_length; i++) {
-    data_buffer[i + 13] = *data_structure.data_ptr;
-    data_structure.data_ptr++;
-  }
-
-  TCPPutArray(*socket, data_buffer, (data_structure.data_length + 13));  
-}  
-
-
-WORD BuildModbusOutput(void)
+***************************************************************************/
+WORD BuildModbusOutput_write_boards(ETMEthernetTXDataStructure* eth_tx_ptr)
 {
-  unsigned int temp;
-  BYTE i;
-  WORD total_bytes;
+	  WORD i; 
+	  WORD total_bytes = 0;  // default: no cmd out 
+//      BYTE offset;   
+      unsigned char* byte_ptr;
     
-  if (super_user_mode == 0)
-    {
-      while (modbus_array[modbus_array_index].poll_behind_pw > 0)
-        {
-	  modbus_array_index++;
-	  if (modbus_array_index >= MODBUS_ARRAY_SIZE) modbus_array_index = 0;
+      if (eth_tx_ptr) // otherwise index is wrong, don't need send any cmd out
+      {
+	    /* modbus header for write:  transaction ID(word), protocol ID(word, 0x0000), length(word, bytes to follow), 
+	    unit id (byte, 0xff), function code (byte, 0x10), reference number(word), data word count (word), 
+	    data byte count(byte), data bytes */
+        total_bytes = 108 + eth_tx_ptr->custom_data_word_count * 2; // bytes after length byte
+          
+	    data_buffer[0] = (transaction_number >> 8) & 0xff;	 // transaction hi byte
+	    data_buffer[1] = transaction_number & 0xff;	 // transaction lo byte
+	    data_buffer[2] = 0;	// protocol hi 
+	    data_buffer[3] = 0;	// protocol lo 
+	    // byte 4 and 5 for length
+        data_buffer[4] = ((total_bytes + 7) >> 8) & 0xff;
+        data_buffer[5] = (total_bytes + 7) & 0xff;
+	    data_buffer[6] = modbus_send_index;	// unit Id 
+
+	    data_buffer[7] = 0x10; // function code 
+	    data_buffer[8] = 0;   // ref # hi
+	    data_buffer[9] = eth_tx_ptr->data_identification;	  // ref # lo
+
+	    data_buffer[10] = 0;  // data length in words hi, always 0, assume data length < 256
+	    data_buffer[11] = total_bytes >> 1;     // data length in words lo
+	    data_buffer[12] = total_bytes & 0xff;   // data length in bytes
+
+        byte_ptr = (unsigned char *)(&eth_tx_ptr->status_data->status_word_0);
+	    for (i = 0; i < total_bytes; i++, byte_ptr++)	
+	    {
+          	data_buffer[i + 13] = *byte_ptr;
         }
-    }
+	    total_bytes = i + 13;
+                 
+	     
+       }
+       
+       return (total_bytes);
 
+}
+/****************************************************************************
+  Function:
+    BuildModbusOutput_read_command(void)
 
-  data_buffer[0] = modbus_array_index + 1;	 // transaction hi byte
-  data_buffer[1] = transaction_number_lo;	 // transaction lo byte
-  data_buffer[2] = 0;	// protocol hi 
-  data_buffer[3] = 0;	// protocol lo 
-  // byte 4 and 5 for length
-  data_buffer[6] = 0;	// unit Id 
-
-  data_buffer[8] = ((modbus_array[modbus_array_index].reference_num - 1) / 256) & 0xff;  // ref #
-  data_buffer[9] = (modbus_array[modbus_array_index].reference_num - 1) % 256;
-
-  if (modbus_array[modbus_array_index].is_write) 
-    {  
-      /* modbus header for write:  transaction ID(word), protocol ID(word, 0x0000), length(word, bytes to follow), 
-	 unit id (byte, 0xff), function code (byte, 0x10), reference number(word), data word count (word), 
-	 data byte count(byte), data bytes */
-
-      data_buffer[7] = 0x10; // function code 
-        
-      data_buffer[10] = 0;  // data length in words hi, always 0, assume data length < 256
-      data_buffer[11] = modbus_array[modbus_array_index].length;  // data length in words lo
-      data_buffer[12] = (modbus_array[modbus_array_index].length << 1);  // data length in bytes
-      for (i = 0; i < data_buffer[12]; i++)
-	data_buffer[i + 13] = modbus_array[modbus_array_index].data[i];
-        
-      // fill the byte length    
-      data_buffer[4] = ((data_buffer[12] + 7) / 256) & 0xff;
-      data_buffer[5] = (data_buffer[12] + 7) % 256;
-      total_bytes = i + 13; 
-    }
-  else
-    {  
+  Description:
+    Build modbus command, return 0 if we don't want to send anything
+ 
+***************************************************************************/
+WORD BuildModbusOutput_read_command(BYTE index)
+{ 
       /* modbus header for read:  transaction ID(word), protocol ID(word, 0x0000), length(word, bytes to follow), 
 	 unit id (byte, 0xff), function code (byte, 0x03), reference number(word), word count (byte) */
 
-      data_buffer[7] = 0x3; // function code 
-
-      data_buffer[10] = 0;  // data length in words hi 
-      data_buffer[11] = modbus_array[modbus_array_index].length;  // data length in words lo
-        
+	  data_buffer[0] = (transaction_number >> 8) & 0xff;	 // transaction hi byte
+	  data_buffer[1] = transaction_number & 0xff;	 // transaction lo byte
+	  data_buffer[2] = 0;	// protocol hi 
+	  data_buffer[3] = 0;	// protocol lo 
       // fill the byte length    
       data_buffer[4] = 0;
       data_buffer[5] = 6;
-      total_bytes = 12; 
-        
-    }
+	  data_buffer[6] = index;	// unit Id 
 
-  transaction_number_lo++;
-  transaction_number_lo = transaction_number_lo % 256;
+      data_buffer[7] = 0x3; // function code 
+	  data_buffer[8] = 1;  // ref # hi
+	  data_buffer[9] = index;  // ref # lo, redundant for now
 
+      data_buffer[10] = 0;  // data length in words hi 
+      data_buffer[11] = sizeof(DevelopmentRegister) / 2;  // data length in words lo
+         
+              
+      return (12);	// always 12 bytes for read command
 
-  return (total_bytes);
-  
+}
+/****************************************************************************
+  Function:
+    BuildModbusOutput(void)
+
+  Description:
+    Build modbus command, return 0 if we don't want to send anything
+ 
+***************************************************************************/
+WORD BuildModbusOutput(void)
+{
+  	static DWORD	Timer_write = 0;
+    WORD total_bytes = 0;  // default: no cmd out
+    ETMEthernetTXDataStructure* eth_tx_ptr = 0;
+    
+	  if((TickGet()-Timer_write) >= TICK_100MS) 
+      {
+ 		  Timer_write = TickGet();
+	      if (!modbus_cmd_need_repeat)
+	      {
+	      	   modbus_send_index++;
+	           if (modbus_send_index > MODBUS_COMMAND_TOTAL) modbus_send_index = 1;	 // starts from 1
+	      }
+	      
+	      if (modbus_send_index >= MODBUS_WR_HVLAMBDA && modbus_send_index <= MODBUS_WR_ETHERNET)
+	      {  // write info to the GUI
+		          switch (modbus_send_index)
+		          {
+				  case MODBUS_WR_HVLAMBDA:
+		          	eth_tx_ptr = &eth_tx_hv_lamdba;
+		          	break;
+				  case MODBUS_WR_ION_PUMP:
+		          	eth_tx_ptr = &eth_tx_ion_pump;
+		          	break;
+				  case MODBUS_WR_AFC:
+		          	eth_tx_ptr = &eth_tx_afc;
+		          	break;
+				  case MODBUS_WR_COOLING:
+		          	eth_tx_ptr = &eth_tx_cooling;
+		          	break;
+				  case MODBUS_WR_HTR_MAGNET:
+		          	eth_tx_ptr = &eth_tx_heater_magnet;
+		          	break;
+				  case MODBUS_WR_GUN_DRIVER:
+		          	eth_tx_ptr = &eth_tx_gun_driver;
+		          	break;
+				  case MODBUS_WR_MAGNETRON_CURRENT:
+		          	eth_tx_ptr = &eth_tx_magnetron_current;
+		          	break;
+				  case MODBUS_WR_PULSE_SYNC:
+		          	eth_tx_ptr = &eth_tx_pulse_sync;
+		          	break;
+				  case MODBUS_WR_ETHERNET:
+		         	eth_tx_ptr = &eth_tx_ethernet_board;
+		          	break;
+				  default: // move to the next for now, ignore some boards
+		          	break;
+		          } 
+		      	  if (eth_tx_ptr) // otherwise index is wrong, don't need send any cmd out
+		          {
+					 total_bytes = BuildModbusOutput_write_boards(eth_tx_ptr);
+		          }
+	      }      
+	      else
+	      {	 // special command for rd or write info
+		      switch (modbus_send_index)
+		      {
+			      case MODBUS_RD_COMMAND:
+	              	total_bytes = BuildModbusOutput_read_command(modbus_send_index);
+	                             
+			      	break;
+			      default:
+		          	break;
+	      	  }
+	          
+	      }
+	      
+	     if (total_bytes) 
+	     {
+	     	 transaction_number++; // don't care about overflow
+	         modbus_cmd_need_repeat = 1; // clear when there is response
+		 }
+      }
+		 return (total_bytes);
+  	  
+      
     
 }
 /*****************************************************************************
@@ -615,11 +651,10 @@ WORD BuildModbusOutput(void)
 ***************************************************************************/
 void GenericTCPClient(void)
 {
-  BYTE 				i;
+
   WORD				w, len;
-  DWORD               pw;
+
   //    char                sBuffer[250];
-  unsigned int temp;
     
       
        
@@ -652,42 +687,28 @@ void GenericTCPClient(void)
     case SM_SOCKET_OBTAINED:
       // Wait for the remote server to accept our connection request
       if(!TCPIsConnected(MySocket)) {
-	// Time out if too much time is spent in this state
-	if(TickGet()-Timer > 5*TICK_SECOND) {
-	  // Close the socket so it can be used by other modules
-	  TCPDisconnect(MySocket);
-	  MySocket = INVALID_SOCKET;
-	  GenericTCPExampleState = SM_HOME;
-	}
-	break;
+		// Time out if too much time is spent in this state
+		if((TickGet()-Timer) > 5*TICK_SECOND) {
+		  // Close the socket so it can be used by other modules
+		  TCPDisconnect(MySocket);
+		  MySocket = INVALID_SOCKET;
+		  GenericTCPExampleState = SM_HOME;
+		}
+		break;
       }
       
       Timer = TickGet();
       
       // Make certain the socket can be written to
-      if(TCPIsPutReady(MySocket) < MAX_TX_SIZE) {
-	break;
-      }
-
+      if (TCPIsPutReady(MySocket) < MAX_TX_SIZE) break;
 
       
       len = BuildModbusOutput();
-      if (modbus_array_index != 0) {
-	TCPPutArray(MySocket,  data_buffer, len);
-      } else {
-	temp = dan_count;
-	dan_array[1] = temp & 0xFF;
-	temp >>= 8;
-	dan_array[0] = temp & 0xFF;
-	dan_count++;
-	etm_can_heater_magnet_mirror.status_data.data_word_A = dan_count;
-	_LATB9 = 1;
-	ETMEthernetSendArray(dan_test_structure, &MySocket, len);
-      }
-
       
+      if (len == 0) break;  // don't want to send anything for now, stay in this state
 
-      
+      TCPPutArray(MySocket,  data_buffer, len);
+
       // Send the packet
       TCPFlush(MySocket);
       _LATB9 = 0;
@@ -697,63 +718,50 @@ void GenericTCPClient(void)
     case SM_PROCESS_RESPONSE:
       // Check to see if the remote node has disconnected from us or sent us any application data
       if(!TCPIsConnected(MySocket)) {
-	GenericTCPExampleState = SM_DISCONNECT;
+	      GenericTCPExampleState = SM_DISCONNECT;
 	// Do not break;  We might still have data in the TCP RX FIFO waiting for us
       }
       
       // Get count of RX bytes waiting
       w = TCPIsGetReady(MySocket);	
 
-      while(w) {
-	if (w > (MAX_TX_SIZE-1)) {
-	  w = (MAX_TX_SIZE-1);
-	}
+     if (w)
+           
+     {
+		if (w > (MAX_TX_SIZE-1)) {
+		  w = (MAX_TX_SIZE-1);
+		}
+		
+		len = TCPGetArray(MySocket, data_buffer, w);
+		w -= len;
 	
-	len = TCPGetArray(MySocket, data_buffer, w);
-	w -= len;
-	
-	if (data_buffer[0] == (modbus_array_index + 1)) {
-	  if (data_buffer[7] == 0x03) {
-	    for (i = 0; i < data_buffer[8]; i++) {
-	      modbus_array[modbus_array_index].data[i] = data_buffer[i + 9];
-	    } 
-	  }
-	  modbus_array_index++;
-	  if (modbus_array_index >= MODBUS_ARRAY_SIZE) {
-	    modbus_array_index = 0;
-	  }	
-	}
-      }
-      
-      
-      /*
+    	if (data_buffer[6] == modbus_send_index) {
+    
+   #if 0 // process recd data
+		  if (data_buffer[7] == 0x03) {
+		    for (i = 0; i < data_buffer[8]; i++) {
+		      modbus_array[modbus_array_index].data[i] = data_buffer[i + 9];
+		    } 
+		  }
+   #endif
+		   modbus_cmd_need_repeat = 0;
 
-      // Obtian and print the server reply
-      i = MAX_TX_SIZE-1;
-      
-      while(w) {
-	// ignore if incoming data is larger than the data_buffer
-	if(i > w) {
-	  i = w;
-	}
-	//	w -= TCPGetArray(MySocket, vBuffer, i);
-	len = TCPGetArray(MySocket, data_buffer, i);
-	w -= len;
-	
-	if (data_buffer[0] == (modbus_array_index + 1)) {
-	  if (data_buffer[7] == 0x03 && data_buffer[8] == (modbus_array[modbus_array_index].length * 2)) { 
-	    // read
-	    for (i = 0; i < data_buffer[8]; i++) {
-	      modbus_array[modbus_array_index].data[i] = data_buffer[i + 9];
-	    }
-	  }
-	  modbus_array_index++;
-	  if (modbus_array_index >= MODBUS_ARRAY_SIZE) modbus_array_index = 0;	
-	}
-      }
-      */
+       //    GenericTCPExampleState = SM_SOCKET_OBTAINED; // repeat sending
+		} // if (data_buffer[0] == (modbus_array_index + 1))
+    
+         GenericTCPExampleState = SM_SOCKET_OBTAINED; // repeat sending
 
-      GenericTCPExampleState = SM_SOCKET_OBTAINED; // repeat sending
+    }  //  while(w)	
+    else
+    {
+		// Time out if too much time is spent in this state
+		if((TickGet()-Timer) > TICK_SECOND) {
+		  // Close the socket so it can be used by other modules
+		  TCPDisconnect(MySocket);
+		  MySocket = INVALID_SOCKET;
+		  GenericTCPExampleState = SM_HOME;
+		}
+    }
 
       break;
 	

@@ -53,7 +53,7 @@
 #ifndef __TICK_H
 #define __TICK_H
 
-#include "TCPIP_Stack/TCPIP.h"
+#include "TCPIP.h"
 
 // All TICKS are stored as 32-bit unsigned integers.
 // This is deprecated since it conflicts with other TICK definitions used in 
@@ -76,6 +76,7 @@ typedef __attribute__((__deprecated__)) DWORD TICK;
 // Represents one hour in Ticks
 #define TICK_HOUR				((QWORD)TICKS_PER_SECOND*3600ull)
 
+#define TICK_100MS             	((QWORD)((GetPeripheralClock()+128ull)/25ull))
 
 void TickInit(void);
 DWORD TickGet(void);
