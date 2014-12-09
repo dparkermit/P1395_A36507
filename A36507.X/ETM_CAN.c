@@ -1,16 +1,17 @@
 #include "ETM_CAN.h"
 #include "ETM_CAN_FIRMWARE_VERSION.h"
+#include "p30fxxxx.h"
 
 void ETMCanCheckForStatusChange(void);
-
-
-
-
 
 
 // Public Buffers
 ETMCanMessageBuffer etm_can_rx_message_buffer;
 ETMCanMessageBuffer etm_can_tx_message_buffer;
+#ifdef __ETM_CAN_MASTER_MODULE
+ETMCanMessageBuffer etm_can_rx_data_log_buffer;
+ETMCanRamMirrorEthernetBoard     etm_can_ethernet_board_data;
+#endif
 
 // Public Variables
 unsigned int etm_can_next_pulse_level;
@@ -26,11 +27,6 @@ ETMCanSystemDebugData etm_can_system_debug_data;
 ETMCanStatusRegister  etm_can_status_register;
 ETMCanAgileConfig     etm_can_my_configuration;
 ETMCanCanStatus       etm_can_can_status;
-
-#ifdef __ETM_CAN_MASTER_MODULE
-ETMCanMessageBuffer etm_can_rx_data_log_buffer;
-ETMCanRamMirrorEthernetBoard     etm_can_ethernet_board_data;
-#endif
 
 // Private Functions
 void ETMCanProcessMessage(void);
@@ -61,6 +57,16 @@ void ETMCanDoSlaveLog(void);
 //local variables
 unsigned int etm_can_default_transmit_counter;
 
+typedef struct {
+  unsigned int reset_count;
+  unsigned int can_timeout_count;
+} PersistentData;
+
+
+volatile PersistentData etm_can_persistent_data __attribute__ ((persistent));
+
+
+
 
 void ETMCanDoCan(void) {
 
@@ -76,13 +82,22 @@ void ETMCanDoCan(void) {
   
   
   ETMCanCheckForTimeOut();
+
+  etm_can_system_debug_data.can_bus_error_count = etm_can_can_status.can_status_timeout;
+  etm_can_system_debug_data.can_bus_error_count += etm_can_can_status.can_status_message_tx_buffer_overflow;
+  etm_can_system_debug_data.can_bus_error_count += etm_can_can_status.can_status_message_rx_buffer_overflow;
+  etm_can_system_debug_data.can_bus_error_count += etm_can_can_status.can_status_data_log_rx_buffer_overflow;
+  etm_can_system_debug_data.can_bus_error_count += etm_can_can_status.can_status_address_error;
+  etm_can_system_debug_data.can_bus_error_count += etm_can_can_status.can_status_invalid_index;
+  etm_can_system_debug_data.can_bus_error_count += etm_can_can_status.can_status_unknown_message_identifier;
 }
 
 void ETMCanCheckForTimeOut(void) {
   if (_T3IF) {
     _T3IF = 0;
     etm_can_can_status.can_status_timeout++;
-    etm_can_status_register.status_word_1 |= FAULT_BIT_CAN_BUS_TIMEOUT;
+    etm_can_persistent_data.can_timeout_count = etm_can_can_status.can_status_timeout; 
+    ETMCanSetBit(&etm_can_status_register.status_word_1,FAULT_BIT_CAN_BUS_TIMEOUT);
   }
 }
 
@@ -113,7 +128,6 @@ void ETMCanProcessMessage(void) {
       ETMCanReturnValue(&next_message);
     } else if ((next_message.identifier & ETM_CAN_MSG_SLAVE_ADDR_MASK) == (ETM_CAN_MSG_SET_3_RX | (ETM_CAN_MY_ADDRESS << 3))) {
       ETMCanSetValue(&next_message);
-    } else {
       etm_can_can_status.can_status_unknown_message_identifier++;
     } 
 #endif
@@ -662,6 +676,26 @@ void ETMCanIonPumpSendTargetCurrentReading(unsigned int target_current_reading, 
 
 
 void ETMCanInitialize(void) {
+  if (_POR || _BOR) {
+    // This was a power cycle;
+    etm_can_persistent_data.reset_count = 0;
+    etm_can_persistent_data.can_timeout_count = 0;
+  } else {
+    etm_can_persistent_data.reset_count++;
+  }
+
+  _POR = 0;
+  _BOR = 0;
+  _SWR = 0;
+  _EXTR = 0;
+  _TRAPR = 0;
+  _WDTO = 0;
+  _IOPUWR = 0;
+
+
+  etm_can_system_debug_data.reset_count = etm_can_persistent_data.reset_count;
+  etm_can_can_status.can_status_timeout = etm_can_persistent_data.can_timeout_count;
+
   _CXIE = 0;
   _CXIF = 0;
   _CXIP = ETM_CAN_INTERRUPT_PRIORITY;
@@ -766,14 +800,14 @@ void ETMCanInitialize(void) {
   _T3IE = 0;
   T3CONbits.TON = 1;
 
-  // DPARKER read configuration from on chip FLASH!!!  // This will be set when the device is programmed as soon as I figure out how to do that.
-  // DPARKER add this to chip memory
-  etm_can_my_configuration.agile_number_high_word = 0;
-  etm_can_my_configuration.agile_number_low_word  = 36224;
-  etm_can_my_configuration.agile_dash             = 500;
-  etm_can_my_configuration.agile_rev_ascii        = 'A';
-  etm_can_my_configuration.serial_number          = 201;
-  
+
+  etm_can_my_configuration.agile_number_high_word = ETM_CAN_AGILE_ID_HIGH;
+  etm_can_my_configuration.agile_number_low_word  = ETM_CAN_AGILE_ID_LOW;
+  etm_can_my_configuration.agile_dash             = ETM_CAN_AGILE_DASH;
+  etm_can_my_configuration.agile_rev_ascii        = ETM_CAN_AGILE_REV;
+  etm_can_my_configuration.serial_number          = ETM_CAN_SERIAL_NUMBER;
+
+
   // Firmware version data should be stored in the H File ETM_CAN_FIRMWARE_VERSION
   etm_can_my_configuration.firmware_major_rev     = FIRMWARE_AGILE_REV;
   etm_can_my_configuration.firmware_branch        = FIRMWARE_BRANCH;
@@ -1097,8 +1131,9 @@ void ETMCanProcessLogData(void) {
 	  break;
 
 	case ETM_CAN_DATA_LOG_REGISTER_HV_LAMBDA_SLOW_SET_POINT:
-	  etm_can_hv_lamdba_mirror.hvlambda_readback_high_energy_set_point = next_message.word2;
-	  etm_can_hv_lamdba_mirror.hvlambda_readback_low_energy_set_point = next_message.word1;
+	  etm_can_hv_lamdba_mirror.hvlambda_eoc_not_reached_count = next_message.word3;
+	  etm_can_hv_lamdba_mirror.hvlambda_readback_vmon = next_message.word2;
+	  etm_can_hv_lamdba_mirror.hvlambda_readback_imon = next_message.word1;
 	  etm_can_hv_lamdba_mirror.hvlambda_readback_base_plate_temp = next_message.word0;
 	  break;
 

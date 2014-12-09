@@ -152,5 +152,6 @@ void ETMCanIonPumpSendTargetCurrentReading(unsigned int target_current_reading, 
 #define FAULT_BIT_USER_DEFINED_15                  0b1000000000000000
 
 
+extern unsigned int global_reset_faults;
 
 #endif

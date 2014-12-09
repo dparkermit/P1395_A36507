@@ -640,8 +640,9 @@ typedef struct {
   unsigned int hvlambda_low_energy_set_point;
 
   // "SLOW" Data that the Ethernet control board reads back from HV Lambda
-  unsigned int hvlambda_readback_high_energy_set_point;
-  unsigned int hvlambda_readback_low_energy_set_point;
+  unsigned int hvlambda_eoc_not_reached_count;
+  unsigned int hvlambda_readback_vmon;
+  unsigned int hvlambda_readback_imon;
   unsigned int hvlambda_readback_base_plate_temp;
 
 } ETMCanRamMirrorHVLambda;
