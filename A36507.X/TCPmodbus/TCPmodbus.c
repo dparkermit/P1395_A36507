@@ -85,7 +85,7 @@ ETMEthernetTXDataStructure   eth_tx_pulse_sync;
 ETMEthernetTXDataStructure   eth_tx_ethernet_board;
 
 
-
+void ExecuteCommands(void);
 unsigned int command_data_count;
 unsigned int command_data_id;
 unsigned int command_data_data;
@@ -321,6 +321,8 @@ void TCPmodbus_task(void)
 
   _LATB8 = 0;
 
+  ExecuteCommands();
+
 }
 
 
@@ -352,7 +354,7 @@ void InitModbusData(void)
    	eth_tx_hv_lamdba.configuration = &etm_can_hv_lamdba_mirror.configuration;						
 																									
    	eth_tx_hv_lamdba.custom_data   = &etm_can_hv_lamdba_mirror.hvlambda_high_energy_set_point;		
-    eth_tx_hv_lamdba.custom_data_word_count = 5; 													
+    eth_tx_hv_lamdba.custom_data_word_count = 6; 													
     eth_tx_hv_lamdba.data_identification = 1;
 
    	eth_tx_ion_pump.status_data   = &etm_can_ion_pump_mirror.status_data;
