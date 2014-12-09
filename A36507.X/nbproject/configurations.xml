@@ -33,13 +33,12 @@
         <itemPath>TCPmodbus/TCPmodbus.h</itemPath>
       </logicalFolder>
       <itemPath>A36507.h</itemPath>
-      <itemPath>ETM_CAN.h</itemPath>
-      <itemPath>ETM_CAN_FIRMWARE_VERSION.h</itemPath>
-      <itemPath>ETM_CAN_PUBLIC.h</itemPath>
-      <itemPath>ETM_CAN_USER_CONFIG.h</itemPath>
-      <itemPath>ETM_EEPROM.h</itemPath>
-      <itemPath>ETM_I2C.h</itemPath>
-      <itemPath>ETM_SPI.h</itemPath>
+      <itemPath>../../P1395_Modules/ETM_CAN.h</itemPath>
+      <itemPath>../../P1395_Modules/ETM_CAN_PUBLIC.h</itemPath>
+      <itemPath>../../P1395_Modules/ETM_EEPROM.h</itemPath>
+      <itemPath>../../P1395_Modules/ETM_I2C.h</itemPath>
+      <itemPath>../../P1395_Modules/ETM_SPI.h</itemPath>
+      <itemPath>../../P1395_Modules/ETM_CAN_USER_CONFIG.h</itemPath>
     </logicalFolder>
     <logicalFolder name="LinkerScript"
                    displayName="Linker Files"
@@ -65,12 +64,12 @@
         <itemPath>TCPmodbus/TCPmodbus.c</itemPath>
       </logicalFolder>
       <itemPath>A36507.c</itemPath>
-      <itemPath>ETM_CAN.c</itemPath>
-      <itemPath>ETM_CAN_USER_CONFIG.c</itemPath>
-      <itemPath>ETM_EEPROM.c</itemPath>
-      <itemPath>ETM_I2C.c</itemPath>
-      <itemPath>ETM_SPI.c</itemPath>
-      <itemPath>ETM_CAN_UTILITY.s</itemPath>
+      <itemPath>../../P1395_Modules/ETM_CAN.c</itemPath>
+      <itemPath>../../P1395_Modules/ETM_CAN_USER_CONFIG.c</itemPath>
+      <itemPath>../../P1395_Modules/ETM_EEPROM.c</itemPath>
+      <itemPath>../../P1395_Modules/ETM_I2C.c</itemPath>
+      <itemPath>../../P1395_Modules/ETM_SPI.c</itemPath>
+      <itemPath>../../P1395_Modules/ETM_CAN_UTILITY.s</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"
@@ -82,6 +81,7 @@
     <Elem>TCP_modbus</Elem>
     <Elem>Include</Elem>
     <Elem>TCPmodbus</Elem>
+    <Elem>../../P1395_Modules</Elem>
   </sourceRootList>
   <projectmakefile>Makefile</projectmakefile>
   <confs>

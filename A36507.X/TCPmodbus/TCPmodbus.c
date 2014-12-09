@@ -65,8 +65,6 @@
 
 #include <p30F6014a.h>
 
-
-#include "../ETM_CAN.h"
 #include "TCPmodbus.h"
 
 // Declare AppConfig structure and some other supporting stack variables

@@ -1,11 +1,13 @@
 #include "A36507.h"
-#include "ETM_CAN_PUBLIC.h"
+#include "../../P1395_MODULES/ETM_CAN_PUBLIC.h"
 
-#include "ETM_CAN.h"
+#include "../../P1395_MODULES/ETM_CAN.h"
 
-#include "ETM_EEPROM.h"
+#include "../../P1395_MODULES/ETM_EEPROM.h"
 
 #include "TCPmodbus/TCPmodbus.h"
+
+#include "FIRMWARE_VERSION.h"
 
 /*
   Modules to be created
@@ -131,6 +133,12 @@ void InitializeA36507(void) {
   _TRISG13 = 0;
   _TRISB8 = 0;
   _TRISB9 = 0;
+
+  etm_can_my_configuration.firmware_major_rev = FIRMWARE_AGILE_REV;
+  etm_can_my_configuration.firmware_branch = FIRMWARE_BRANCH;
+  etm_can_my_configuration.firmware_minor_rev = FIRMWARE_MINOR_REV;
+    
+
   ETMEEPromConfigureDevice(&U5_FM24C64B, EEPROM_I2C_ADDRESS_0, I2C_PORT, EEPROM_SIZE_8K_BYTES, FCY_CLK, ETM_I2C_400K_BAUD);
   
 }
