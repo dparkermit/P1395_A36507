@@ -90,6 +90,13 @@ ETMEthernetTXDataStructure   eth_tx_ethernet_board;
 
 
 
+unsigned int command_data_count;
+unsigned int command_data_id;
+unsigned int command_data_data;
+
+
+
+
 static BYTE         data_buffer[MAX_TX_SIZE];
 static BYTE         modbus_send_index = 0;
 //static BYTE         super_user_mode = 0;
@@ -776,18 +783,21 @@ void GenericTCPClient(void)
     	if (data_buffer[6] == modbus_send_index) {
 
 
-	  if (data_buffer[7] == MODBUS_RD_COMMAND) {
+	  if (data_buffer[6] == MODBUS_RD_COMMAND) {
+	    command_data_count   = data_buffer[10];
+	    command_data_count <<= 8;
+	    command_data_count  += data_buffer[9];
 	    
+	    command_data_id      = data_buffer[12];
+	    command_data_id    <<= 8;
+	    command_data_id     += data_buffer[11];
+
+	    command_data_data    = data_buffer[14];
+	    command_data_data  <<= 8;
+	    command_data_data   += data_buffer[13];
 	  }
     
-   #if 0 // process recd data
-		  if (data_buffer[7] == 0x03) {
-		    for (i = 0; i < data_buffer[8]; i++) {
-		      modbus_array[modbus_array_index].data[i] = data_buffer[i + 9];
-		    } 
-		  }
-   #endif
-		   modbus_cmd_need_repeat = 0;
+	  modbus_cmd_need_repeat = 0;
 
        //    GenericTCPExampleState = SM_SOCKET_OBTAINED; // repeat sending
 		} // if (data_buffer[0] == (modbus_array_index + 1))
@@ -825,3 +835,115 @@ void GenericTCPClient(void)
     }
 }
 
+
+unsigned int command_count;
+
+
+
+#define ETHERNET_CMD_HEATER_MAGNET_HEATER_SET_POINT      0
+#define ETHERNET_CMD_HEATER_MAGNET_MAGNET_SET_POINT      1
+#define ETHERNET_CMD_HV_LAMBDA_HIGH_SET_POINT            2
+#define ETHERNET_CMD_HV_LAMBDA_LOW_SET_POINT             3
+#define ETHERNET_CMD_HEATER_MAGNET_ON                    4
+#define ETHERNET_CMD_HEATER_MAGNET_OFF                   5
+#define ETHERNET_CMD_HV_LAMBDA_ON                        6
+#define ETHERNET_CMD_HV_LAMBDA_OFF                       7
+#define ETHERNET_CMD_RESET_FAULTS                        8
+
+void ExecuteCommands(void) {
+  ETMCanMessage can_message;
+  
+
+  
+  if (command_data_count != command_count) {
+    // We have a new command to exexute  
+    command_count = command_data_count;
+    
+    switch (command_data_id) 
+      {
+      case ETHERNET_CMD_HEATER_MAGNET_HEATER_SET_POINT:
+	etm_can_heater_magnet_mirror.htrmag_heater_current_set_point = command_data_data;
+	break;
+	
+      case ETHERNET_CMD_HEATER_MAGNET_MAGNET_SET_POINT:
+	etm_can_heater_magnet_mirror.htrmag_magnet_current_set_point = command_data_data;	
+	break;
+
+
+      case ETHERNET_CMD_HV_LAMBDA_HIGH_SET_POINT:
+	etm_can_hv_lamdba_mirror.hvlambda_high_energy_set_point = command_data_data;
+	break;
+
+      case ETHERNET_CMD_HV_LAMBDA_LOW_SET_POINT:
+	etm_can_hv_lamdba_mirror.hvlambda_low_energy_set_point = command_data_data;
+	break;
+
+
+      case ETHERNET_CMD_HEATER_MAGNET_ON:
+	can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_HEATER_MAGNET_BOARD << 3));
+	can_message.word3      = ETM_CAN_REGISTER_HEATER_MAGNET_CMD_OUTPUT_ENABLE;
+	can_message.word2      = 0;
+	can_message.word1      = 0;
+	can_message.word0      = 0;
+	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
+	break;
+
+      case ETHERNET_CMD_HEATER_MAGNET_OFF:
+	can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_HEATER_MAGNET_BOARD << 3));
+	can_message.word3      = ETM_CAN_REGISTER_HEATER_MAGNET_CMD_OUTPUT_DISABLE;
+	can_message.word2      = 0;
+	can_message.word1      = 0;
+	can_message.word0      = 0;
+	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
+	break;
+
+      case ETHERNET_CMD_HV_LAMBDA_ON:
+	can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_HV_LAMBDA_BOARD << 3));
+	can_message.word3      = ETM_CAN_REGISTER_HV_LAMBDA_CMD_HV_ON;
+	can_message.word2      = 0;
+	can_message.word1      = 0;
+	can_message.word0      = 0;
+	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
+	break;
+
+      case ETHERNET_CMD_HV_LAMBDA_OFF:
+	can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_HV_LAMBDA_BOARD << 3));
+	can_message.word3      = ETM_CAN_REGISTER_HV_LAMBDA_CMD_HV_OFF;
+	can_message.word2      = 0;
+	can_message.word1      = 0;
+	can_message.word0      = 0;
+	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
+	break;
+
+      case ETHERNET_CMD_RESET_FAULTS:
+	can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_HEATER_MAGNET_BOARD << 3));
+	can_message.word3      = ETM_CAN_REGISTER_DEFAULT_CMD_RESET_FAULTS | (ETM_CAN_ADDR_HEATER_MAGNET_BOARD << 12);
+	can_message.word2      = 0;
+	can_message.word1      = 0;
+	can_message.word0      = 0;
+	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
+	
+	can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_HV_LAMBDA_BOARD << 3));
+	can_message.word3      = ETM_CAN_REGISTER_DEFAULT_CMD_RESET_FAULTS | (ETM_CAN_ADDR_HV_LAMBDA_BOARD << 12);
+	can_message.word2      = 0;
+	can_message.word1      = 0;
+	can_message.word0      = 0;
+	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
+	break;
+      
+
+
+      default:
+	break;
+	
+      }
+    
+
+  }
+}
