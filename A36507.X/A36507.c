@@ -1,12 +1,8 @@
 #include "A36507.h"
-#include "../../P1395_MODULES/ETM_CAN_PUBLIC.h"
-
-#include "../../P1395_MODULES/ETM_CAN.h"
-
-#include "../../P1395_MODULES/ETM_EEPROM.h"
-
-#include "TCPmodbus/TCPmodbus.h"
-
+#include "ETM_CAN_PUBLIC.h"
+#include "ETM_CAN.h"
+#include "ETM_EEPROM.h"
+#include "TCPmodbus.h"
 #include "FIRMWARE_VERSION.h"
 
 /*

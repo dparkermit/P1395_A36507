@@ -60,11 +60,9 @@
 
 
 #include "TCPIPStack/TCPIPStack/TCPIPConfig.h"
-
 #include "TCPIPStack/TCPIPStack/TCPIP.h"
 
 #include <p30F6014a.h>
-
 #include "TCPmodbus.h"
 
 // Declare AppConfig structure and some other supporting stack variables
