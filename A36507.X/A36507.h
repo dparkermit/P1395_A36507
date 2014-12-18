@@ -17,6 +17,8 @@
   Timer2 - Used to time CAN transmits - This is configured by ETM CAN module
   Timer3 - Used as timeout on status update receives - This is configured by ETM CAN module
 
+  Timer5 - Used for ethernet board timing
+
   UART1 - Reserved for TCU Communication
   UART2 - Reserved for Serial GUI
 
@@ -86,12 +88,12 @@
 
 */
 
-#define A36507_TRISA_VALUE //0b1100 0010 0000 0000 
-#define A36507_TRISB_VALUE //0b0110 0000 0000 0011 
-#define A36507_TRISC_VALUE //0b0000 0000 0000 0000 
-#define A36507_TRISD_VALUE //0b1100 0000 0000 0000 
-#define A36507_TRISF_VALUE //0b0000 0001 1111 1111 
-#define A36507_TRISG_VALUE //0b0100 0000 0000 1111
+#define A36507_TRISA_VALUE 0b1100001000000000 
+#define A36507_TRISB_VALUE 0b0110000000000011 
+#define A36507_TRISC_VALUE 0b0000000000000000 
+#define A36507_TRISD_VALUE 0b1100000000000000 
+#define A36507_TRISF_VALUE 0b0000000111111111 
+#define A36507_TRISG_VALUE 0b0100000000001111
 
 
 #define PIN_OUT_ETM_UART_1_DE                 _LATD7

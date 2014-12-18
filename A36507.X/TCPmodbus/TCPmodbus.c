@@ -847,6 +847,10 @@ unsigned int command_count;
 #define ETHERNET_CMD_HV_LAMBDA_ON                        6
 #define ETHERNET_CMD_HV_LAMBDA_OFF                       7
 #define ETHERNET_CMD_RESET_FAULTS                        8
+#define PULSE_SYNC_SEND_DEFAULT_CMD                      9
+#define PULSE_SYNC_ENABLE_HV_ON                          10
+#define PULSE_SYNC_ENABLE_HV_OFF                         11
+
 
 void ExecuteCommands(void) {
   ETMCanMessage can_message;
@@ -935,6 +939,60 @@ void ExecuteCommands(void) {
 	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
 	break;
       
+
+      case PULSE_SYNC_SEND_DEFAULT_CMD:
+	can_message.identifier = (ETM_CAN_MSG_SET_1_TX | (ETM_CAN_ADDR_PULSE_SYNC_BOARD << 3));
+	can_message.word3      = ETM_CAN_REGISTER_PULSE_SYNC_SET_1_HIGH_ENERGY_TIMING_REG_0;
+	can_message.word2      = 0;
+	can_message.word1      = 0;
+	can_message.word0      = 0;
+	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
+
+	can_message.identifier = (ETM_CAN_MSG_SET_1_TX | (ETM_CAN_ADDR_PULSE_SYNC_BOARD << 3));
+	can_message.word3      = ETM_CAN_REGISTER_PULSE_SYNC_SET_1_HIGH_ENERGY_TIMING_REG_1;
+	can_message.word2      = 0;
+	can_message.word1      = 0;
+	can_message.word0      = 0;
+	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
+
+	can_message.identifier = (ETM_CAN_MSG_SET_1_TX | (ETM_CAN_ADDR_PULSE_SYNC_BOARD << 3));
+	can_message.word3      = ETM_CAN_REGISTER_PULSE_SYNC_SET_1_LOW_ENERGY_TIMING_REG_0;
+	can_message.word2      = 0;
+	can_message.word1      = 0;
+	can_message.word0      = 0;
+	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
+
+	can_message.identifier = (ETM_CAN_MSG_SET_1_TX | (ETM_CAN_ADDR_PULSE_SYNC_BOARD << 3));
+	can_message.word3      = ETM_CAN_REGISTER_PULSE_SYNC_SET_1_LOW_ENERGY_TIMING_REG_1;
+	can_message.word2      = 0;
+	can_message.word1      = 0;
+	can_message.word0      = 0;
+	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
+	break;	
+
+      case PULSE_SYNC_ENABLE_HV_ON:
+	can_message.identifier = (ETM_CAN_MSG_SET_1_TX | (ETM_CAN_ADDR_PULSE_SYNC_BOARD << 3));
+	can_message.word3      = ETM_CAN_REGISTER_PULSE_SYNC_SET_1_CUSTOMER_LED_OUTPUT;
+	can_message.word2      = 0;
+	can_message.word1      = 0;
+	can_message.word0      = 0b0000000000001100;
+	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
+	break;
+
+      case PULSE_SYNC_ENABLE_HV_OFF:
+	can_message.identifier = (ETM_CAN_MSG_SET_1_TX | (ETM_CAN_ADDR_PULSE_SYNC_BOARD << 3));
+	can_message.word3      = ETM_CAN_REGISTER_PULSE_SYNC_SET_1_CUSTOMER_LED_OUTPUT;
+	can_message.word2      = 0;
+	can_message.word1      = 0;
+	can_message.word0      = 0b0000000000000000;
+	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
+	break;
 
 
       default:
