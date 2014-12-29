@@ -5,6 +5,17 @@
 #include "TCPmodbus.h"
 #include "FIRMWARE_VERSION.h"
 
+unsigned int CheckReadyForOperation(void) {
+  return 1;
+}
+
+
+unsigned int CheckCustomerHVOn(void) {
+  return 1;
+}
+
+void DoA36507(void);
+
 /*
   Modules to be created
 
@@ -35,6 +46,12 @@ typedef struct {
   unsigned int thyratron_warmup_counter_seconds;
   unsigned int magnetron_heater_warmup_counter_seconds;
   unsigned int gun_driver_heater_warmup_counter_seconds;
+
+  unsigned int millisecond_counter;
+  unsigned int warmup_timer_stage;
+  unsigned int warmup_done;
+  //REAL_TIME_CLOCK time_now;
+  
 } A36507GlobalVars;
 
 A36507GlobalVars global_data_A36507;
@@ -50,7 +67,6 @@ A36507GlobalVars global_data_A36507;
 
 #define STATE_COLD_FAULT         0x80
 #define STATE_WARM_FAULT         0x90
-#define STATE_HEATER_FAULT       0xA0
 
 
 void DoStateMachine(void);
@@ -69,10 +85,13 @@ int main(void) {
 #define MAGNETRON_WARMUP_SECONDS          120
 #define GUN_DRIVER_WARMUP_SECONDS         120
 
-void UpdateWarmupTimers(void);
+
+void DoWarmupTimers(void);
+unsigned int CheckFault(void);
+unsigned int CheckHeaterFault(void);
+
 
 void DoStateMachine(void) {
-  unsigned int millisecond_counter;
   
   switch (global_data_A36507.control_state) {
     
@@ -92,25 +111,17 @@ void DoStateMachine(void) {
 
     
     while (global_data_A36507.control_state == STATE_WARMUP) {
-      etm_can_system_debug_data.debug_0 = global_data_A36507.thyratron_warmup_counter_seconds;
-      etm_can_system_debug_data.debug_1 = global_data_A36507.magnetron_heater_warmup_counter_seconds;
-      etm_can_system_debug_data.debug_2 = global_data_A36507.gun_driver_heater_warmup_counter_seconds;
+      local_debug_data.debug_0 = global_data_A36507.thyratron_warmup_counter_seconds;
+      local_debug_data.debug_1 = global_data_A36507.magnetron_heater_warmup_counter_seconds;
+      local_debug_data.debug_2 = global_data_A36507.gun_driver_heater_warmup_counter_seconds;
 
-      ETMCanDoCan();
-      TCPmodbus_task();
-      if (_T5IF) {
-	_T5IF = 0;
-	millisecond_counter += 10;
-	if (millisecond_counter >= 1000) {
-	  UpdateWarmupTimers();
-	  millisecond_counter = 0;
-	}
-      }
+
+      DoA36507();
     
-      if ((global_data_A36507.thyratron_warmup_counter_seconds >= THYRATRON_WARMUP_SECONDS) && (global_data_A36507.magnetron_heater_warmup_counter_seconds >= MAGNETRON_WARMUP_SECONDS) && (global_data_A36507.gun_driver_heater_warmup_counter_seconds >= GUN_DRIVER_WARMUP_SECONDS)) {
+      if (global_data_A36507.warmup_done) {
 	global_data_A36507.control_state = STATE_STANDBY;
       }
-
+      
       if (CheckFault()) {
 	global_data_A36507.control_state = STATE_COLD_FAULT;
       }
@@ -121,14 +132,60 @@ void DoStateMachine(void) {
         
   case STATE_STANDBY:
     while (global_data_A36507.control_state == STATE_STANDBY) {
-      ETMCanDoCan();
-      TCPmodbus_task();
-      // Write Heater Times
-      if (etm_can_sync_message.sync_0 == 0) {
-	// DO NOTHING
+      DoA36507();
+      
+      if (CheckCustomerHVOn()) {
+	global_data_A36507.control_state = STATE_DRIVE_UP;
       }
+      
+      if (CheckFault()) {
+	global_data_A36507.control_state = STATE_WARM_FAULT;
+      }
+      
     }
     break;
+
+
+  case STATE_DRIVE_UP:
+    // Enable HV ON Command to Pulse Sync Board
+    while (global_data_A36507.control_state == STATE_DRIVE_UP) {
+      
+      DoA36507();
+      
+      if (CheckReadyForOperation()) {
+	global_data_A36507.control_state = STATE_READY;
+      }
+
+      if (!CheckCustomerHVOn()) {
+	global_data_A36507.control_state = STATE_STANDBY;
+      }
+      
+      if (CheckFault()) {
+	global_data_A36507.control_state = STATE_WARM_FAULT;
+      }
+      
+    }
+    break;
+
+
+
+  case STATE_READY:
+    // Enable HV ON Command to Pulse Sync Board
+    while (global_data_A36507.control_state == STATE_DRIVE_UP) {
+      
+      DoA36507();
+      
+      if (!CheckCustomerHVOn()) {
+	global_data_A36507.control_state = STATE_STANDBY;
+      }
+      
+      if (CheckFault()) {
+	global_data_A36507.control_state = STATE_WARM_FAULT;
+      }
+      
+    }
+    break;
+
 
 
   case STATE_WARM_FAULT:
@@ -141,40 +198,15 @@ void DoStateMachine(void) {
       // IF Customer HV is OFF, attempt to reset all faults  
       
       if (!CheckFault()) {
-	global_data_A36507.control_state == STATE_STANDBY;
+	global_data_A36507.control_state = STATE_STANDBY;
       }
       
       if (CheckHeaterFault()) {
-	global_data_A36507.control_state == STATE_HEATER_FAULT;
+	global_data_A36507.control_state = STATE_COLD_FAULT;
       }
     }
     break;
 
-
-    /*
-  case STATE_HEATER_FAULT:
-    // Disable HV Lambda
-    // Disable Heater Magnet
-    // Disable HV ON Command to Pulse Sync Board
-    // Disable Gun Driver 
-    while (global_data_A36507.control_state == STATE_HEATER_FAULT) {
-      ETMCanDoCan();
-      TCPmodbus_task();
-      // Write Tyratron Heater Timer
-      // If Gun Driver Heater Enabled, write gun driver heater time
-      // If Heater/Magnet is Operational, write heater/Magnet time
-
-      
-      // IF Customer HV is OFF, attempt to reset all faults
-
-      if (!CheckFault()) {
-	global_data_A36507.control_state == STATE_WARMUP;
-      }
-    }
-    
-    break;
-
-    */
 
   case STATE_COLD_FAULT:
     // Disable HV Lambda
@@ -190,7 +222,7 @@ void DoStateMachine(void) {
       // IF Customer HV is OFF, attempt to reset all faults
 
       if (!CheckFault()) {
-	global_data_A36507.control_state == STATE_WARMUP;
+	global_data_A36507.control_state = STATE_WARMUP;
       }
     }
     
@@ -205,38 +237,101 @@ void DoStateMachine(void) {
   
 }
 
+unsigned int CheckHeaterFault(void) {
+  return 0;
+}
+
+unsigned int CheckFault(void) {
+  return 0;
+}
 
 
-void UpdateWarmupTimers(void) {
-  // The thyratron is warming up if the power is on, so increment the thyratron warmup counter
-  global_data_A36507.thyratron_warmup_counter_seconds++;	  
-  if (global_data_A36507.thyratron_warmup_counter_seconds >= 0xFF00) {
-    global_data_A36507.thyratron_warmup_counter_seconds = 0xFF00;
+
+
+void DoA36507(void) {
+  ETMCanDoCan();
+  TCPmodbus_task();
+
+  if (_T5IF) {
+    // 10ms Timer has expired
+    _T5IF = 0;
+    
+    global_data_A36507.millisecond_counter += 10;
+    if (global_data_A36507.millisecond_counter >= 250) {
+      global_data_A36507.millisecond_counter = 0;
+      DoWarmupTimers();
+    }
+    
   }
   
-  // If the magnetron heater is on, increment it's heater counter otherwise set it to zero
-  if ((ETMCanCheckBit(etm_can_heater_magnet_mirror.status_data.status_word_0, STATUS_BIT_SUM_FAULT) == 0) && (ETMCanCheckBit(etm_can_heater_magnet_mirror.status_data.status_word_0, STATUS_BIT_PULSE_INHIBITED) == 0)) {
-    global_data_A36507.magnetron_heater_warmup_counter_seconds++;
-    if (global_data_A36507.magnetron_heater_warmup_counter_seconds >= 0xFF00) {
-      global_data_A36507.magnetron_heater_warmup_counter_seconds = 0xFF00;
+}
+
+#define WARMUP_TIMER_STAGE_READ_TIME        0
+#define WARMUP_TIMER_STAGE_THYRATRON        1
+#define WARMUP_TIMER_STAGE_MAGNETRON        2
+#define WARMUP_TIMER_STAGE_GUN_DRIVER       3
+
+
+
+void DoWarmupTimers(void) {
+
+  switch (global_data_A36507.warmup_timer_stage) 
+    {
+    case WARMUP_TIMER_STAGE_READ_TIME:
+      //ReadDateAndTime(&global_data_A36507.time_now);
+      global_data_A36507.warmup_timer_stage = WARMUP_TIMER_STAGE_THYRATRON;
+      break;
+
+    case WARMUP_TIMER_STAGE_THYRATRON:
+      global_data_A36507.thyratron_warmup_counter_seconds++;	  
+      if (global_data_A36507.thyratron_warmup_counter_seconds >= (THYRATRON_WARMUP_SECONDS + 3)) {
+	global_data_A36507.thyratron_warmup_counter_seconds = THYRATRON_WARMUP_SECONDS + 3;
+	// DPARKER WRITE CURRENT TIME TO FRAM THYRATRON PAGE 
+      }
+      global_data_A36507.warmup_timer_stage = WARMUP_TIMER_STAGE_MAGNETRON;
+      break;
+
+    case WARMUP_TIMER_STAGE_MAGNETRON:
+      // If the magnetron heater is on, increment it's heater counter otherwise set it to zero
+      //if ((ETMCanCheckBit(etm_can_heater_magnet_mirror.status_data.status_word_0, STATUS_BIT_SUM_FAULT) == 0) && (ETMCanCheckBit(etm_can_heater_magnet_mirror.status_data.status_word_0, STATUS_BIT_PULSE_INHIBITED) == 0)) {
+      if (1) {
+	global_data_A36507.magnetron_heater_warmup_counter_seconds++;
+	if (global_data_A36507.magnetron_heater_warmup_counter_seconds >= (MAGNETRON_WARMUP_SECONDS + 3)) {
+	  global_data_A36507.magnetron_heater_warmup_counter_seconds = MAGNETRON_WARMUP_SECONDS + 3;
+	  // DPARKER WRITE CURRENT TIME TO FRAM MAGNETRON PAGE 
+	}
+      } else {
+	if (global_data_A36507.magnetron_heater_warmup_counter_seconds >= 2) {
+	  global_data_A36507.magnetron_heater_warmup_counter_seconds -= 2;
+	}
+      }
+      global_data_A36507.warmup_timer_stage = WARMUP_TIMER_STAGE_GUN_DRIVER;
+      break;
+      
+    case WARMUP_TIMER_STAGE_GUN_DRIVER:
+      // If the gun driver heater is on, increment it's heater counter otherwise decrement it by 2
+      
+      //if (ETMCanCheckBit(etm_can_gun_driver_mirror.status_data.status_word_0, STATUS_BIT_USER_DEFINED_8) == 0) {
+      if (1) {
+	global_data_A36507.gun_driver_heater_warmup_counter_seconds++;
+	if (global_data_A36507.gun_driver_heater_warmup_counter_seconds >= (GUN_DRIVER_WARMUP_SECONDS + 3)) {
+	  global_data_A36507.gun_driver_heater_warmup_counter_seconds = GUN_DRIVER_WARMUP_SECONDS + 3;
+	  // DPARKER WRITE CURRENT TIME TO FRAM GUN DRIVER PAGE 
+	}
+      } else {
+	if (global_data_A36507.gun_driver_heater_warmup_counter_seconds >= 2) {
+	  global_data_A36507.gun_driver_heater_warmup_counter_seconds -= 2;
+	}
+      }
+      global_data_A36507.warmup_timer_stage = WARMUP_TIMER_STAGE_READ_TIME;
+      break;
     }
-  } else {
-    if (global_data_A36507.magnetron_heater_warmup_counter_seconds >= 2) {
-      global_data_A36507.magnetron_heater_warmup_counter_seconds -= 2;
-    }
-  }
   
-  // If the gun driver heater is on, increment it's heater counter otherwise decrement it by 2
-  if (ETMCanCheckBit(etm_can_gun_driver_mirror.status_data.status_word_0, STATUS_BIT_USER_DEFINED_8) == 0) {
-    global_data_A36507.gun_driver_heater_warmup_counter_seconds++;
-    if (global_data_A36507.gun_driver_heater_warmup_counter_seconds >= 0xFF00) {
-      global_data_A36507.gun_driver_heater_warmup_counter_seconds = 0xFF00;
-    }
+  if ((global_data_A36507.thyratron_warmup_counter_seconds >= THYRATRON_WARMUP_SECONDS) && (global_data_A36507.magnetron_heater_warmup_counter_seconds >= MAGNETRON_WARMUP_SECONDS) && (global_data_A36507.gun_driver_heater_warmup_counter_seconds >= GUN_DRIVER_WARMUP_SECONDS)) {
+    global_data_A36507.warmup_done = 1;
   } else {
-    if (global_data_A36507.gun_driver_heater_warmup_counter_seconds >= 2) {
-      global_data_A36507.gun_driver_heater_warmup_counter_seconds -= 2;
-    }
-  } 
+    global_data_A36507.warmup_done = 0;
+  }
 }
 
 
@@ -244,10 +339,10 @@ void InitializeA36507(void) {
   unsigned int startup_counter;
 
 
-  etm_can_status_register.status_word_0 = 0x0000;
-  etm_can_status_register.status_word_1 = 0x0000;
-  etm_can_status_register.data_word_A = 0x0000;
-  etm_can_status_register.data_word_B = 0x0000;
+  //etm_can_status_register.status_word_0 = 0x0000;
+  //etm_can_status_register.status_word_1 = 0x0000;
+  //etm_can_status_register.data_word_A = 0x0000;
+  //etm_can_status_register.data_word_B = 0x0000;
   //etm_can_status_register.status_word_0_inhbit_mask = A36444_INHIBIT_MASK;
   //etm_can_status_register.status_word_1_fault_mask  = A36444_FAULT_MASK;
 
@@ -279,12 +374,13 @@ void InitializeA36507(void) {
 
   ETMEEPromConfigureDevice(&U5_FM24C64B, EEPROM_I2C_ADDRESS_0, I2C_PORT, EEPROM_SIZE_8K_BYTES, FCY_CLK, ETM_I2C_400K_BAUD);
 
+  //ConfigureDS3231(&global_data_A36507.time_now, I2C_PORT, RTC_DEFAULT_CONFIG);
+  
   // Initialize the Can module
   ETMCanInitialize();
   
   // Initialize TCPmodbus Module
   TCPmodbus_init();
-
 
 
   //Initialize the internal ADC for Startup Power Checks
