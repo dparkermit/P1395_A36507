@@ -27,7 +27,8 @@ void DoA36507(void);
   
 */
 _FOSC(ECIO_PLL16 & CSW_FSCM_OFF); 
-_FWDT(WDT_ON & WDTPSA_64 & WDTPSB_8);  // 1 Second watchdog timer 
+//_FWDT(WDT_ON & WDTPSA_64 & WDTPSB_8);  // 1 Second watchdog timer 
+_FWDT(WDT_ON & WDTPSA_512 & WDTPSB_8);  // 8 Second watchdog timer 
 _FBORPOR(PWRT_OFF & BORV_45 & PBOR_OFF & MCLR_EN);
 _FBS(WR_PROTECT_BOOT_OFF & NO_BOOT_CODE & NO_BOOT_EEPROM & NO_BOOT_RAM);
 _FSS(WR_PROT_SEC_OFF & NO_SEC_CODE & NO_SEC_EEPROM & NO_SEC_RAM);
@@ -171,7 +172,7 @@ void DoStateMachine(void) {
 
   case STATE_READY:
     // Enable HV ON Command to Pulse Sync Board
-    while (global_data_A36507.control_state == STATE_DRIVE_UP) {
+    while (global_data_A36507.control_state == STATE_READY) {
       
       DoA36507();
       
@@ -251,6 +252,13 @@ unsigned int CheckFault(void) {
 void DoA36507(void) {
   ETMCanDoCan();
   TCPmodbus_task();
+
+
+  _STATUS_0 = _SYNC_CONTROL_RESET_ENABLE;
+  _STATUS_1 = _SYNC_CONTROL_HIGH_SPEED_LOGGING;
+  _STATUS_2 = _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV;
+  _STATUS_3 = _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY;
+  _STATUS_4 = _SYNC_CONTROL_COOLING_FAULT;
 
   if (_T5IF) {
     // 10ms Timer has expired

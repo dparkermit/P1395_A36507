@@ -842,14 +842,14 @@ unsigned int command_count;
 #define ETHERNET_CMD_HEATER_MAGNET_MAGNET_SET_POINT      1
 #define ETHERNET_CMD_HV_LAMBDA_HIGH_SET_POINT            2
 #define ETHERNET_CMD_HV_LAMBDA_LOW_SET_POINT             3
-#define ETHERNET_CMD_HEATER_MAGNET_ON                    4
-#define ETHERNET_CMD_HEATER_MAGNET_OFF                   5
-#define ETHERNET_CMD_HV_LAMBDA_ON                        6
-#define ETHERNET_CMD_HV_LAMBDA_OFF                       7
-#define ETHERNET_CMD_RESET_FAULTS                        8
-#define PULSE_SYNC_SEND_DEFAULT_CMD                      9
-#define PULSE_SYNC_ENABLE_HV_ON                          10
-#define PULSE_SYNC_ENABLE_HV_OFF                         11
+#define PULSE_SYNC_SEND_DEFAULT_CMD                      4
+
+#define ETHERNET_TOGGLE_RESET                            20
+#define ETHERNET_TOGGLE_HIGH_SPEED_LOGGING               21
+#define PULSE_SYNC_TOGGLE_HV_ENABLE                      22
+#define PULSE_SYNC_TOGGLE_XRAY_ENABLE                    23
+#define ETHERNET_CMD_TOGGLE_COOLANT_FAULT_BIT            24
+
 
 
 void ExecuteCommands(void) {
@@ -880,65 +880,6 @@ void ExecuteCommands(void) {
 	etm_can_hv_lamdba_mirror.hvlambda_low_energy_set_point = command_data_data;
 	break;
 
-
-      case ETHERNET_CMD_HEATER_MAGNET_ON:
-	can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_HEATER_MAGNET_BOARD << 3));
-	can_message.word3      = ETM_CAN_REGISTER_HEATER_MAGNET_CMD_OUTPUT_ENABLE;
-	can_message.word2      = 0;
-	can_message.word1      = 0;
-	can_message.word0      = 0;
-	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
-	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
-	break;
-
-      case ETHERNET_CMD_HEATER_MAGNET_OFF:
-	can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_HEATER_MAGNET_BOARD << 3));
-	can_message.word3      = ETM_CAN_REGISTER_HEATER_MAGNET_CMD_OUTPUT_DISABLE;
-	can_message.word2      = 0;
-	can_message.word1      = 0;
-	can_message.word0      = 0;
-	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
-	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
-	break;
-
-      case ETHERNET_CMD_HV_LAMBDA_ON:
-	can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_HV_LAMBDA_BOARD << 3));
-	can_message.word3      = ETM_CAN_REGISTER_HV_LAMBDA_CMD_HV_ON;
-	can_message.word2      = 0;
-	can_message.word1      = 0;
-	can_message.word0      = 0;
-	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
-	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
-	break;
-
-      case ETHERNET_CMD_HV_LAMBDA_OFF:
-	can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_HV_LAMBDA_BOARD << 3));
-	can_message.word3      = ETM_CAN_REGISTER_HV_LAMBDA_CMD_HV_OFF;
-	can_message.word2      = 0;
-	can_message.word1      = 0;
-	can_message.word0      = 0;
-	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
-	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
-	break;
-
-      case ETHERNET_CMD_RESET_FAULTS:
-	can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_HEATER_MAGNET_BOARD << 3));
-	can_message.word3      = ETM_CAN_REGISTER_DEFAULT_CMD_RESET_FAULTS | (ETM_CAN_ADDR_HEATER_MAGNET_BOARD << 12);
-	can_message.word2      = 0;
-	can_message.word1      = 0;
-	can_message.word0      = 0;
-	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
-	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
-	
-	can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_HV_LAMBDA_BOARD << 3));
-	can_message.word3      = ETM_CAN_REGISTER_DEFAULT_CMD_RESET_FAULTS | (ETM_CAN_ADDR_HV_LAMBDA_BOARD << 12);
-	can_message.word2      = 0;
-	can_message.word1      = 0;
-	can_message.word0      = 0;
-	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
-	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
-	break;
-      
 
       case PULSE_SYNC_SEND_DEFAULT_CMD:
 	can_message.identifier = (ETM_CAN_MSG_SET_1_TX | (ETM_CAN_ADDR_PULSE_SYNC_BOARD << 3));
@@ -974,25 +915,47 @@ void ExecuteCommands(void) {
 	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
 	break;	
 
-      case PULSE_SYNC_ENABLE_HV_ON:
-	can_message.identifier = (ETM_CAN_MSG_SET_1_TX | (ETM_CAN_ADDR_PULSE_SYNC_BOARD << 3));
-	can_message.word3      = ETM_CAN_REGISTER_PULSE_SYNC_SET_1_CUSTOMER_LED_OUTPUT;
-	can_message.word2      = 0;
-	can_message.word1      = 0;
-	can_message.word0      = 0b0000000000001100;
-	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
-	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
+
+      case ETHERNET_TOGGLE_RESET:
+	if (_SYNC_CONTROL_RESET_ENABLE) {
+	  _SYNC_CONTROL_RESET_ENABLE = 0;
+	} else {
+	  _SYNC_CONTROL_RESET_ENABLE = 1;
+	}
 	break;
 
-      case PULSE_SYNC_ENABLE_HV_OFF:
-	can_message.identifier = (ETM_CAN_MSG_SET_1_TX | (ETM_CAN_ADDR_PULSE_SYNC_BOARD << 3));
-	can_message.word3      = ETM_CAN_REGISTER_PULSE_SYNC_SET_1_CUSTOMER_LED_OUTPUT;
-	can_message.word2      = 0;
-	can_message.word1      = 0;
-	can_message.word0      = 0b0000000000000000;
-	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
-	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
+      case ETHERNET_TOGGLE_HIGH_SPEED_LOGGING:
+	if (_SYNC_CONTROL_HIGH_SPEED_LOGGING) {
+	  _SYNC_CONTROL_HIGH_SPEED_LOGGING = 0;
+	} else {
+	  _SYNC_CONTROL_HIGH_SPEED_LOGGING = 1;
+	}
 	break;
+
+      case PULSE_SYNC_TOGGLE_HV_ENABLE:
+	if (_SYNC_CONTROL_PULSE_SYNC_DISABLE_HV) {
+	  _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 0;
+	} else {
+	  _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 1;
+	}
+	break;
+
+      case PULSE_SYNC_TOGGLE_XRAY_ENABLE:
+	if (_SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY) {
+	  _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 0;
+	} else {
+	  _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
+	}
+	break;
+
+      case ETHERNET_CMD_TOGGLE_COOLANT_FAULT_BIT:
+	if (_SYNC_CONTROL_COOLING_FAULT) {
+	  _SYNC_CONTROL_COOLING_FAULT = 0;
+	} else {
+	  _SYNC_CONTROL_COOLING_FAULT = 1;
+	}
+	break;
+
 
 
       default:
