@@ -1,18 +1,23 @@
 #include "A36507.h"
-#include "ETM_CAN_PUBLIC.h"
-#include "ETM_CAN.h"
-#include "ETM_EEPROM.h"
-#include "TCPmodbus.h"
 #include "FIRMWARE_VERSION.h"
 
-unsigned int CheckReadyForOperation(void) {
-  return 1;
-}
 
 
-unsigned int CheckCustomerHVOn(void) {
-  return 1;
-}
+unsigned long dan_test_long = 0x12345678;
+
+unsigned int dan_test_high_word;
+unsigned int dan_test_low_word;
+
+unsigned int dan_test[10] = {0x0102,0x0304,0x0405,0x0607,0x0809,0x0A0B,0x0C0D,0x0E0F,0x1020,0x3040};
+
+unsigned int dan_test2[10];
+
+unsigned char dan_test_char;
+
+RTC_TIME test_time;
+
+void CalculateHeaterWarmupTimers(void);
+
 
 void DoA36507(void);
 
@@ -29,7 +34,7 @@ void DoA36507(void);
 _FOSC(ECIO_PLL16 & CSW_FSCM_OFF); 
 //_FWDT(WDT_ON & WDTPSA_64 & WDTPSB_8);  // 1 Second watchdog timer 
 _FWDT(WDT_ON & WDTPSA_512 & WDTPSB_8);  // 8 Second watchdog timer 
-_FBORPOR(PWRT_OFF & BORV_45 & PBOR_OFF & MCLR_EN);
+_FBORPOR(PWRT_64 & BORV_45 & PBOR_OFF & MCLR_EN);
 _FBS(WR_PROTECT_BOOT_OFF & NO_BOOT_CODE & NO_BOOT_EEPROM & NO_BOOT_RAM);
 _FSS(WR_PROT_SEC_OFF & NO_SEC_CODE & NO_SEC_EEPROM & NO_SEC_RAM);
 _FGS(CODE_PROT_OFF);
@@ -37,28 +42,26 @@ _FICD(PGD);
 
 
 ETMEEProm U5_FM24C64B;
+RTC_DS3231 U6_DS3231;
+
+A36507GlobalVars global_data_A36507;
 
 void InitializeA36507(void);
 
 
+unsigned int CheckReadyForOperation(void) {
+  return 1;
+}
 
-typedef struct {
-  unsigned int control_state;
-  unsigned int thyratron_warmup_counter_seconds;
-  unsigned int magnetron_heater_warmup_counter_seconds;
-  unsigned int gun_driver_heater_warmup_counter_seconds;
 
-  unsigned int millisecond_counter;
-  unsigned int warmup_timer_stage;
-  unsigned int warmup_done;
-  //REAL_TIME_CLOCK time_now;
-  
-} A36507GlobalVars;
+unsigned int CheckCustomerHVOn(void) {
+  return 1;
+}
 
-A36507GlobalVars global_data_A36507;
 
 
 #define STATE_STARTUP            0x10
+#define STATE_WAITING_FOR_INITIALIZATION  0x15
 #define STATE_WARMUP             0x20
 #define STATE_STANDBY            0x30
 #define STATE_DRIVE_UP           0x40
@@ -87,7 +90,6 @@ int main(void) {
 #define GUN_DRIVER_WARMUP_SECONDS         120
 
 
-void DoWarmupTimers(void);
 unsigned int CheckFault(void);
 unsigned int CheckHeaterFault(void);
 
@@ -98,27 +100,26 @@ void DoStateMachine(void) {
     
   case STATE_STARTUP:
     InitializeA36507();
-    global_data_A36507.control_state = STATE_WARMUP;
+    global_data_A36507.control_state = STATE_WAITING_FOR_INITIALIZATION;
 
-    // DPARKER calculate all of the warmup counters based on previous warmup completed
-    // Why do we need a gun driver warmup timer.  It is ALWAYS going to be less than the thyratron warmup counter
     break;
 
+  case STATE_WAITING_FOR_INITIALIZATION:
+    CalculateHeaterWarmupTimers();
+    
+    while (global_data_A36507.control_state == STATE_WAITING_FOR_INITIALIZATION) {
+      // DPARKER wait for all boards to report that they have been initialized
+      global_data_A36507.control_state = STATE_WARMUP;
+    }
+    break;
+    
 
   case STATE_WARMUP:
-    global_data_A36507.thyratron_warmup_counter_seconds = 0;
-    global_data_A36507.magnetron_heater_warmup_counter_seconds = 0;
-    global_data_A36507.gun_driver_heater_warmup_counter_seconds = 0;
+    // Calculate all of the warmup counters based on previous warmup completed
 
-    
     while (global_data_A36507.control_state == STATE_WARMUP) {
-      local_debug_data.debug_0 = global_data_A36507.thyratron_warmup_counter_seconds;
-      local_debug_data.debug_1 = global_data_A36507.magnetron_heater_warmup_counter_seconds;
-      local_debug_data.debug_2 = global_data_A36507.gun_driver_heater_warmup_counter_seconds;
-
-
       DoA36507();
-    
+
       if (global_data_A36507.warmup_done) {
 	global_data_A36507.control_state = STATE_STANDBY;
       }
@@ -228,9 +229,9 @@ void DoStateMachine(void) {
     }
     
     break;
-
-
-
+    
+    
+    
   default:
     global_data_A36507.control_state = STATE_COLD_FAULT;
     break;
@@ -249,116 +250,169 @@ unsigned int CheckFault(void) {
 
 
 
+
+#define EEPROM_PAGE_AFC_HEATER_MAGNET           0
+#define EEPROM_PAGE_HV_LAMBDA                   1
+#define EEPROM_PAGE_GUN_DRIVER                  2
+#define EEPROM_PAGE_PULSE_SYNC_PERSONALITY_1    3
+#define EEPROM_PAGE_PULSE_SYNC_PERSONALITY_2    4
+#define EEPROM_PAGE_PULSE_SYNC_PERSONALITY_3    5
+#define EEPROM_PAGE_PULSE_SYNC_PERSONALITY_4    6
+#define EEPROM_PAGE_ON_TIME                     7
+#define EEPROM_PAGE_HEATER_TIMERS               8
+// EEPROM PAGES reserved for future use         9->15
+
+
+
+
+
+
+
+//global_data_A36507.magnetron_heater_last_warm_seconds  = 0x00010002;
+//global_data_A36507.thyratron_heater_last_warm_seconds  = 0x00030004;
+//global_data_A36507.gun_driver_heater_last_warm_seconds = 0x00050006;
+
+
+//ETMEEPromWritePage(&U5_FM24C64B, EEPROM_PAGE_HEATER_TIMERS, 6, (unsigned int*)&global_data_A36507.magnetron_heater_last_warm_seconds);
+
+//ETMEEPromReadPage(&U5_FM24C64B, EEPROM_PAGE_HEATER_TIMERS, 8, &dan_test2[0]);
+
+
+#define MAGNETRON_HEATER_WARM_UP_TIME        300   // 5 minutes
+#define THYRATRON_WARM_UP_TIME               900   // 15 minutes
+#define GUN_DRIVER_HEATER_WARM_UP_TIME       300   // 5 minutes  
+
+
+
+void CalculateHeaterWarmupTimers(void) {
+  unsigned long seconds_now;
+  unsigned long difference;
+  // Read the warmup timers stored in EEPROM
+  ETMEEPromReadPage(&U5_FM24C64B, EEPROM_PAGE_HEATER_TIMERS, 6, (unsigned int*)&global_data_A36507.magnetron_heater_last_warm_seconds);
+  dan_test_char = ReadDateAndTime(&U6_DS3231, &global_data_A36507.time_now);
+  seconds_now = RTCDateToSeconds(&global_data_A36507.time_now);
+  
+  // Calculate new magnetron heater warm up time remaining
+  difference = seconds_now - global_data_A36507.magnetron_heater_last_warm_seconds;
+  if (difference > (MAGNETRON_HEATER_WARM_UP_TIME >> 1)) {
+    global_data_A36507.magnetron_heater_warmup_counter_seconds = MAGNETRON_HEATER_WARM_UP_TIME;    
+  } else {
+    global_data_A36507.magnetron_heater_warmup_counter_seconds = (difference << 1);
+  }
+
+  // Calculate new thyratron warm up time remaining
+  difference = seconds_now - global_data_A36507.thyratron_heater_last_warm_seconds;
+  if (difference > (THYRATRON_WARM_UP_TIME >> 1)) {
+    global_data_A36507.thyratron_warmup_counter_seconds = THYRATRON_WARM_UP_TIME;    
+  } else {
+    global_data_A36507.thyratron_warmup_counter_seconds = (difference << 1);
+  }
+  
+  // Calculate new gun driver heater warm up time remaining
+  difference = seconds_now - global_data_A36507.gun_driver_heater_last_warm_seconds;
+  if (difference > (GUN_DRIVER_HEATER_WARM_UP_TIME >> 1)) {
+    global_data_A36507.gun_driver_heater_warmup_counter_seconds = GUN_DRIVER_HEATER_WARM_UP_TIME;
+  } else {
+    global_data_A36507.gun_driver_heater_warmup_counter_seconds = (difference << 1);
+  }
+
+}
+
+
 void DoA36507(void) {
+  unsigned long seconds_now;
   ETMCanDoCan();
   TCPmodbus_task();
 
 
-  _STATUS_0 = _SYNC_CONTROL_RESET_ENABLE;
-  _STATUS_1 = _SYNC_CONTROL_HIGH_SPEED_LOGGING;
-  _STATUS_2 = _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV;
-  _STATUS_3 = _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY;
-  _STATUS_4 = _SYNC_CONTROL_COOLING_FAULT;
+  local_debug_data.debug_0 = global_data_A36507.thyratron_warmup_counter_seconds;
+  local_debug_data.debug_1 = global_data_A36507.magnetron_heater_warmup_counter_seconds;
+  local_debug_data.debug_2 = global_data_A36507.gun_driver_heater_warmup_counter_seconds;
+  local_debug_data.debug_3 = global_data_A36507.control_state;
+  
+  local_debug_data.debug_F = *(unsigned int*)&etm_can_sync_message.sync_0_control_word;
+
 
   if (_T5IF) {
     // 10ms Timer has expired
     _T5IF = 0;
     
+    // DPARKER Check for cooling fault, and set the sync bit message as appropriate
+
+
+    // Run at 1 second interval
     global_data_A36507.millisecond_counter += 10;
-    if (global_data_A36507.millisecond_counter >= 250) {
+
+    if (global_data_A36507.millisecond_counter >= 1000) {
       global_data_A36507.millisecond_counter = 0;
-      DoWarmupTimers();
+    }
+
+
+    if (global_data_A36507.millisecond_counter == 0) {
+      // Read Date/Time from RTC and update the warmup up counters
+      ReadDateAndTime(&U6_DS3231, &global_data_A36507.time_now);
+      seconds_now = RTCDateToSeconds(&global_data_A36507.time_now);
+
+      // Update the warmup counters
+      if (global_data_A36507.thyratron_warmup_counter_seconds > 0) {
+	global_data_A36507.thyratron_warmup_counter_seconds--;
+      } else {
+	global_data_A36507.thyratron_heater_last_warm_seconds = seconds_now;
+      }
+      
+      if (_HEATER_MAGNET_CONNECTED && _HEATER_MAGNET_ON) {
+	// The Magnetron heater is on
+	if (global_data_A36507.magnetron_heater_warmup_counter_seconds > 0) {
+	  global_data_A36507.magnetron_heater_warmup_counter_seconds--;
+	} else {
+	  global_data_A36507.magnetron_heater_last_warm_seconds = seconds_now;
+	}
+      } else {
+	global_data_A36507.magnetron_heater_warmup_counter_seconds += 2;
+	if (global_data_A36507.magnetron_heater_warmup_counter_seconds >= MAGNETRON_HEATER_WARM_UP_TIME) {
+	  global_data_A36507.magnetron_heater_warmup_counter_seconds = MAGNETRON_HEATER_WARM_UP_TIME;
+	}
+      }
+	
+      if (_GUN_DRIVER_CONNECTED && _GUN_HEATER_ON) {
+	// The gun heater is on
+	if (global_data_A36507.gun_driver_heater_warmup_counter_seconds > 0) {
+	  global_data_A36507.gun_driver_heater_warmup_counter_seconds--;
+	} else {
+	  global_data_A36507.gun_driver_heater_last_warm_seconds = seconds_now;
+	}
+      } else {
+	global_data_A36507.gun_driver_heater_warmup_counter_seconds += 2;
+	if (global_data_A36507.gun_driver_heater_warmup_counter_seconds >= GUN_DRIVER_HEATER_WARM_UP_TIME) {
+	  global_data_A36507.gun_driver_heater_warmup_counter_seconds = GUN_DRIVER_HEATER_WARM_UP_TIME;
+	}
+      }
+    }
+
+    if (global_data_A36507.millisecond_counter == 250) {
+      // Write Warmup Done Timers to EEPROM
+      ETMEEPromWritePage(&U5_FM24C64B, EEPROM_PAGE_HEATER_TIMERS, 6, (unsigned int*)&global_data_A36507.magnetron_heater_last_warm_seconds);
     }
     
-  }
-  
-}
-
-#define WARMUP_TIMER_STAGE_READ_TIME        0
-#define WARMUP_TIMER_STAGE_THYRATRON        1
-#define WARMUP_TIMER_STAGE_MAGNETRON        2
-#define WARMUP_TIMER_STAGE_GUN_DRIVER       3
-
-
-
-void DoWarmupTimers(void) {
-
-  switch (global_data_A36507.warmup_timer_stage) 
-    {
-    case WARMUP_TIMER_STAGE_READ_TIME:
-      //ReadDateAndTime(&global_data_A36507.time_now);
-      global_data_A36507.warmup_timer_stage = WARMUP_TIMER_STAGE_THYRATRON;
-      break;
-
-    case WARMUP_TIMER_STAGE_THYRATRON:
-      global_data_A36507.thyratron_warmup_counter_seconds++;	  
-      if (global_data_A36507.thyratron_warmup_counter_seconds >= (THYRATRON_WARMUP_SECONDS + 3)) {
-	global_data_A36507.thyratron_warmup_counter_seconds = THYRATRON_WARMUP_SECONDS + 3;
-	// DPARKER WRITE CURRENT TIME TO FRAM THYRATRON PAGE 
-      }
-      global_data_A36507.warmup_timer_stage = WARMUP_TIMER_STAGE_MAGNETRON;
-      break;
-
-    case WARMUP_TIMER_STAGE_MAGNETRON:
-      // If the magnetron heater is on, increment it's heater counter otherwise set it to zero
-      //if ((ETMCanCheckBit(etm_can_heater_magnet_mirror.status_data.status_word_0, STATUS_BIT_SUM_FAULT) == 0) && (ETMCanCheckBit(etm_can_heater_magnet_mirror.status_data.status_word_0, STATUS_BIT_PULSE_INHIBITED) == 0)) {
-      if (1) {
-	global_data_A36507.magnetron_heater_warmup_counter_seconds++;
-	if (global_data_A36507.magnetron_heater_warmup_counter_seconds >= (MAGNETRON_WARMUP_SECONDS + 3)) {
-	  global_data_A36507.magnetron_heater_warmup_counter_seconds = MAGNETRON_WARMUP_SECONDS + 3;
-	  // DPARKER WRITE CURRENT TIME TO FRAM MAGNETRON PAGE 
-	}
-      } else {
-	if (global_data_A36507.magnetron_heater_warmup_counter_seconds >= 2) {
-	  global_data_A36507.magnetron_heater_warmup_counter_seconds -= 2;
-	}
-      }
-      global_data_A36507.warmup_timer_stage = WARMUP_TIMER_STAGE_GUN_DRIVER;
-      break;
-      
-    case WARMUP_TIMER_STAGE_GUN_DRIVER:
-      // If the gun driver heater is on, increment it's heater counter otherwise decrement it by 2
-      
-      //if (ETMCanCheckBit(etm_can_gun_driver_mirror.status_data.status_word_0, STATUS_BIT_USER_DEFINED_8) == 0) {
-      if (1) {
-	global_data_A36507.gun_driver_heater_warmup_counter_seconds++;
-	if (global_data_A36507.gun_driver_heater_warmup_counter_seconds >= (GUN_DRIVER_WARMUP_SECONDS + 3)) {
-	  global_data_A36507.gun_driver_heater_warmup_counter_seconds = GUN_DRIVER_WARMUP_SECONDS + 3;
-	  // DPARKER WRITE CURRENT TIME TO FRAM GUN DRIVER PAGE 
-	}
-      } else {
-	if (global_data_A36507.gun_driver_heater_warmup_counter_seconds >= 2) {
-	  global_data_A36507.gun_driver_heater_warmup_counter_seconds -= 2;
-	}
-      }
-      global_data_A36507.warmup_timer_stage = WARMUP_TIMER_STAGE_READ_TIME;
-      break;
+    if (global_data_A36507.millisecond_counter == 500) {
+      // Write Seconds on Counters to EEPROM
+      ETMEEPromWritePage(&U5_FM24C64B, EEPROM_PAGE_ON_TIME, 6, (unsigned int*)&global_data_A36507.system_powered_seconds);
     }
-  
-  if ((global_data_A36507.thyratron_warmup_counter_seconds >= THYRATRON_WARMUP_SECONDS) && (global_data_A36507.magnetron_heater_warmup_counter_seconds >= MAGNETRON_WARMUP_SECONDS) && (global_data_A36507.gun_driver_heater_warmup_counter_seconds >= GUN_DRIVER_WARMUP_SECONDS)) {
-    global_data_A36507.warmup_done = 1;
-  } else {
-    global_data_A36507.warmup_done = 0;
   }
 }
-
 
 void InitializeA36507(void) {
   unsigned int startup_counter;
 
+  _FAULT_REGISTER = 0;
+  _CONTROL_REGISTER = 0;
 
-  //etm_can_status_register.status_word_0 = 0x0000;
-  //etm_can_status_register.status_word_1 = 0x0000;
-  //etm_can_status_register.data_word_A = 0x0000;
-  //etm_can_status_register.data_word_B = 0x0000;
-  //etm_can_status_register.status_word_0_inhbit_mask = A36444_INHIBIT_MASK;
-  //etm_can_status_register.status_word_1_fault_mask  = A36444_FAULT_MASK;
-
+  etm_can_status_register.data_word_A = 0x0000;
+  etm_can_status_register.data_word_B = 0x0000;
 
   etm_can_my_configuration.firmware_major_rev = FIRMWARE_AGILE_REV;
   etm_can_my_configuration.firmware_branch = FIRMWARE_BRANCH;
   etm_can_my_configuration.firmware_minor_rev = FIRMWARE_MINOR_REV;
-
 
   // Initialize all I/O Registers
   TRISA = A36507_TRISA_VALUE;
@@ -368,21 +422,15 @@ void InitializeA36507(void) {
   TRISF = A36507_TRISF_VALUE;
   TRISG = A36507_TRISG_VALUE;
 
-
-#define T5CON_VALUE                    (T5_ON & T5_IDLE_CON & T5_GATE_OFF & T5_PS_1_8 & T5_SOURCE_INT)
-#define PR5_PERIOD_US                  10000   // 10mS
-#define PR5_VALUE_10_MILLISECONDS      (FCY_CLK_MHZ*PR5_PERIOD_US/8)
-
   // Initialize TMR5
   PR5   = PR5_VALUE_10_MILLISECONDS;
   TMR5  = 0;
   _T5IF = 0;
   T5CON = T5CON_VALUE;
 
-
   ETMEEPromConfigureDevice(&U5_FM24C64B, EEPROM_I2C_ADDRESS_0, I2C_PORT, EEPROM_SIZE_8K_BYTES, FCY_CLK, ETM_I2C_400K_BAUD);
 
-  //ConfigureDS3231(&global_data_A36507.time_now, I2C_PORT, RTC_DEFAULT_CONFIG);
+  ConfigureDS3231(&U6_DS3231, I2C_PORT, RTC_DEFAULT_CONFIG, FCY_CLK, ETM_I2C_400K_BAUD);
   
   // Initialize the Can module
   ETMCanInitialize();
@@ -390,25 +438,37 @@ void InitializeA36507(void) {
   // Initialize TCPmodbus Module
   TCPmodbus_init();
 
-
   //Initialize the internal ADC for Startup Power Checks
   // ---- Configure the dsPIC ADC Module ------------ //
-  /*
   ADCON1 = ADCON1_SETTING;             // Configure the high speed ADC module based on H file parameters
   ADCON2 = ADCON2_SETTING;             // Configure the high speed ADC module based on H file parameters
   ADPCFG = ADPCFG_SETTING;             // Set which pins are analog and which are digital I/O
   ADCHS  = ADCHS_SETTING;              // Configure the high speed ADC module based on H file parameters
 
-  ADCON3 = ADCON3_SETTING_STARTUP;     // Configure the high speed ADC module based on H file parameters
-  ADCSSL = ADCSSL_SETTING_STARTUP;
+  ADCON3 = ADCON3_SETTING;             // Configure the high speed ADC module based on H file parameters
+  ADCSSL = ADCSSL_SETTING;
 
   _ADIF = 0;
-  _ADIE = 1;
   _ADON = 1;
 
-  */
+  // Wait for data to be read
+  while (_ADIF == 0);
 
+  global_data_A36507.analog_input_5v_mon.filtered_adc_reading  = ADCBUF0 + ADCBUF2 + ADCBUF4 + ADCBUF6 + ADCBUF8 + ADCBUFA + ADCBUFC + ADCBUFE;
+  global_data_A36507.analog_input_3v3_mon.filtered_adc_reading = ADCBUF1 + ADCBUF3 + ADCBUF5 + ADCBUF7 + ADCBUF9 + ADCBUFB + ADCBUFD + ADCBUFF;
 
+  global_data_A36507.analog_input_5v_mon.filtered_adc_reading  <<= 1;
+  global_data_A36507.analog_input_3v3_mon.filtered_adc_reading <<= 1;  
+
+  ETMAnalogScaleCalibrateADCReading(&global_data_A36507.analog_input_5v_mon);
+  ETMAnalogScaleCalibrateADCReading(&global_data_A36507.analog_input_3v3_mon);
+
+  
+  local_debug_data.debug_8 = global_data_A36507.analog_input_5v_mon.reading_scaled_and_calibrated;
+  local_debug_data.debug_9 = global_data_A36507.analog_input_3v3_mon.reading_scaled_and_calibrated;
+
+  _ADON = 0;
+  
   // Flash LEDs at Startup
   startup_counter = 0;
   while (startup_counter <= 400) {  // 4 Seconds total
@@ -444,6 +504,9 @@ void InitializeA36507(void) {
       break;
     }
   }
+
+  dan_test_low_word = *(unsigned int*)&dan_test_long;
+  dan_test_high_word = *((unsigned int*)&dan_test_long + 1); 
 
 }
 

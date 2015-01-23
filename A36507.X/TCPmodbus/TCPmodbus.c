@@ -750,8 +750,10 @@ void GenericTCPClient(void)
       
       if (len == 0) break;  // don't want to send anything for now, stay in this state
 
+      _LATB7 = 1;
       TCPPutArray(MySocket,  data_buffer, len);
-
+      _LATB7 = 0;
+      
       // Send the packet
       TCPFlush(MySocket);
       _LATB9 = 0;
@@ -843,6 +845,8 @@ unsigned int command_count;
 #define ETHERNET_CMD_HV_LAMBDA_HIGH_SET_POINT            2
 #define ETHERNET_CMD_HV_LAMBDA_LOW_SET_POINT             3
 #define PULSE_SYNC_SEND_DEFAULT_CMD                      4
+#define ETHERNET_SET_HV_LAMBDA_ADC_0_CAL                 5
+#define ETHERNET_READ_HV_LAMBDA_ADC_0_CAL                6
 
 #define ETHERNET_TOGGLE_RESET                            20
 #define ETHERNET_TOGGLE_HIGH_SPEED_LOGGING               21
@@ -880,6 +884,26 @@ void ExecuteCommands(void) {
 	etm_can_hv_lamdba_mirror.hvlambda_low_energy_set_point = command_data_data;
 	break;
 
+      case ETHERNET_SET_HV_LAMBDA_ADC_0_CAL:
+	can_message.identifier = (ETM_CAN_MSG_SET_1_TX | (ETM_CAN_ADDR_HV_LAMBDA_BOARD << 3));
+	can_message.word3      = (ETM_CAN_ADDR_HV_LAMBDA_BOARD << 12) + 0x0F00; 
+	can_message.word2      = 0;
+	can_message.word1      = 100;
+	can_message.word0      = 0x7F00;
+	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
+	break;
+
+
+      case ETHERNET_READ_HV_LAMBDA_ADC_0_CAL:
+	can_message.identifier = (ETM_CAN_MSG_REQUEST_RX | (ETM_CAN_ADDR_HV_LAMBDA_BOARD << 3));
+	can_message.word3      = (ETM_CAN_ADDR_HV_LAMBDA_BOARD << 12) + 0x0F00; 
+	can_message.word2      = 0;
+	can_message.word1      = 100;
+	can_message.word0      = 0x7F00;
+	ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+	MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
+	break;
 
       case PULSE_SYNC_SEND_DEFAULT_CMD:
 	can_message.identifier = (ETM_CAN_MSG_SET_1_TX | (ETM_CAN_ADDR_PULSE_SYNC_BOARD << 3));

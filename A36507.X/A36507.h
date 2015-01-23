@@ -3,8 +3,13 @@
 
 #include <p30f6014a.h>
 #include <libpic30.h>
-
-
+#include <adc12.h>
+#include "ETM_ANALOG.h"
+#include "DS3231.h"
+#include "ETM_CAN_PUBLIC.h"
+#include "ETM_CAN.h"
+#include "ETM_EEPROM.h"
+#include "TCPmodbus.h"
 
 
 /*
@@ -22,9 +27,6 @@
   UART1 - Reserved for TCU Communication
   UART2 - Reserved for Serial GUI
 
-  
-  
-
 
  */
 
@@ -41,15 +43,6 @@
   All unused pins will be set to outputs and logic zero
   LAT values default to 0 at startup so they do not need to be manually set
 */
-
-
-// ----------------- ANALOG INPUT PINS ---------------- //
-/* 
-   AN13 - 5V    Voltage Monitor 
-   AN14 - 3.3V  Voltage Monitor
-   
-*/
-#define ADPCFG_VALUE       //0b1001 1111 1111 1111
 
 
 
@@ -113,8 +106,26 @@
 #define PIN_OUT_TP_16                         _LATB9
 
 
+// --------------- CONFIGURE TMR5 MODULE ----------------------- //
+#define T5CON_VALUE                    (T5_ON & T5_IDLE_CON & T5_GATE_OFF & T5_PS_1_8 & T5_SOURCE_INT)
+#define PR5_PERIOD_US                  10000   // 10mS
+#define PR5_VALUE_10_MILLISECONDS      (FCY_CLK_MHZ*PR5_PERIOD_US/8)
+
+
 
 // ------------------------ CONFIGURE ADC MODULE ------------------- //
+#define ADCON1_SETTING          (ADC_MODULE_OFF & ADC_IDLE_STOP & ADC_FORMAT_INTG & ADC_CLK_AUTO & ADC_AUTO_SAMPLING_ON)
+#define ADCON2_SETTING          (ADC_VREF_AVDD_EXT & ADC_SCAN_ON & ADC_SAMPLES_PER_INT_16 & ADC_ALT_BUF_OFF & ADC_ALT_INPUT_OFF)
+#define ADCON3_SETTING          (ADC_SAMPLE_TIME_31 & ADC_CONV_CLK_SYSTEM & ADC_CONV_CLK_10Tcy)
+
+#define ADPCFG_SETTING          (ENABLE_AN13_ANA & ENABLE_AN14_ANA)
+#define ADCSSL_SETTING          (SKIP_SCAN_AN0 & SKIP_SCAN_AN1 & SKIP_SCAN_AN2 & SKIP_SCAN_AN3 & SKIP_SCAN_AN4 & SKIP_SCAN_AN5 & SKIP_SCAN_AN6 &  SKIP_SCAN_AN7 & SKIP_SCAN_AN8 & SKIP_SCAN_AN9 & SKIP_SCAN_AN10 & SKIP_SCAN_AN11 & SKIP_SCAN_AN12 & SKIP_SCAN_AN15)
+
+#define ADCHS_SETTING           (ADC_CH0_POS_SAMPLEA_AN13 & ADC_CH0_NEG_SAMPLEA_VREFN & ADC_CH0_POS_SAMPLEB_AN14 & ADC_CH0_NEG_SAMPLEB_VREFN)
+
+
+
+
 
 
 
@@ -123,6 +134,38 @@
 #define FAULT_A36507_CAN_TIMEOUT              0b0000 0000 0000 0001
 #define FAULT_A36507_CAN_ETHERNET_TIMEOUT     0b0000 0000 0000 0010
 //#define FAULT_A36507_     
+
+
+
+
+typedef struct {
+  AnalogInput analog_input_5v_mon;                    // 1mV per LSB
+  AnalogInput analog_input_3v3_mon;                   // 1mV per LSB
+
+  unsigned int control_state;
+  unsigned int thyratron_warmup_counter_seconds;
+  unsigned int magnetron_heater_warmup_counter_seconds;
+  unsigned int gun_driver_heater_warmup_counter_seconds;
+
+  unsigned int millisecond_counter;
+  unsigned int warmup_timer_stage;
+  unsigned int warmup_done;
+
+  unsigned long magnetron_heater_last_warm_seconds;
+  unsigned long thyratron_heater_last_warm_seconds;
+  unsigned long gun_driver_heater_last_warm_seconds;
+
+
+  unsigned long system_powered_seconds;
+  unsigned long system_hv_on_seconds;
+  unsigned long system_xray_on_seconds;
+
+  RTC_TIME time_now;
+} A36507GlobalVars;
+
+
+
+extern A36507GlobalVars global_data_A36507;
 
 
 #endif
