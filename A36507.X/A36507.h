@@ -12,6 +12,7 @@
 #include "TCPmodbus.h"
 
 
+
 /*
   Hardware Module Resource Usage
 
@@ -161,11 +162,29 @@ typedef struct {
   unsigned long system_xray_on_seconds;
 
   RTC_TIME time_now;
+
+  unsigned int send_pulse_sync_config;
+  unsigned int drive_up_timer;
 } A36507GlobalVars;
 
 
 
 extern A36507GlobalVars global_data_A36507;
+
+#define _STATUS_X_RAY_DISABLED                          _STATUS_0
+
+
+#define _FAULT_DRIVE_UP_TIMEOUT                         _FAULT_0
+
+#define _FAULT_GUN_HEATER_OFF                           _FAULT_7
+#define _FAULT_HV_LAMBDA_NOT_OPERATE                    _FAULT_8
+#define _FAULT_ION_PUMP_NOT_OEPRATE                     _FAULT_9
+#define _FAULT_AFC_NOT_OPERATE                          _FAULT_A
+#define _FAULT_COOLING_NOT_OPERATE                      _FAULT_B
+#define _FAULT_HTR_MAG_NOT_OPERATE                      _FAULT_C
+#define _FAULT_GUN_DVR_NOT_OPERATE                      _FAULT_D
+#define _FAULT_PULSE_CURRENT_MON_NOT_OPERATE            _FAULT_E
+#define _FAULT_PULSE_SYNC_NOT_OPERATE                   _FAULT_F
 
 
 #endif

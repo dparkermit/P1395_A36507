@@ -16,7 +16,6 @@ unsigned char dan_test_char;
 
 RTC_TIME test_time;
 
-void CalculateHeaterWarmupTimers(void);
 
 
 void DoA36507(void);
@@ -43,37 +42,32 @@ _FICD(PGD);
 
 ETMEEProm U5_FM24C64B;
 RTC_DS3231 U6_DS3231;
-
 A36507GlobalVars global_data_A36507;
 
+unsigned int CheckSystemFault(void);
+unsigned int CheckHVOffFault(void);
+unsigned int CheckFault(void);
+unsigned int CheckAllModulesConfigured(void);
+void CalculateHeaterWarmupTimers(void);
 void InitializeA36507(void);
-
-
-unsigned int CheckReadyForOperation(void) {
-  return 1;
-}
-
-
-unsigned int CheckCustomerHVOn(void) {
-  return 1;
-}
-
-
-
-#define STATE_STARTUP            0x10
-#define STATE_WAITING_FOR_INITIALIZATION  0x15
-#define STATE_WARMUP             0x20
-#define STATE_STANDBY            0x30
-#define STATE_DRIVE_UP           0x40
-#define STATE_READY              0x50
-#define STATE_XRAY_ON            0x60
-
-
-#define STATE_COLD_FAULT         0x80
-#define STATE_WARM_FAULT         0x90
-
-
 void DoStateMachine(void);
+void SendToEventLog(ETMCanStatusRegister* ptr_status);
+
+
+
+#define STATE_STARTUP                     0x10
+#define STATE_WAITING_FOR_INITIALIZATION  0x15
+#define STATE_WARMUP                      0x20
+#define STATE_STANDBY                     0x30
+#define STATE_DRIVE_UP                    0x40
+#define STATE_READY                       0x50
+#define STATE_XRAY_ON                     0x60
+
+
+#define STATE_FAULT_HOLD                  0x80
+#define STATE_FAULT_RESET                 0x90
+#define STATE_FAULT_SYSTEM                0xA0
+
 
 int main(void) {
   
@@ -85,167 +79,292 @@ int main(void) {
 }
 
 
-#define THYRATRON_WARMUP_SECONDS          120
-#define MAGNETRON_WARMUP_SECONDS          120
-#define GUN_DRIVER_WARMUP_SECONDS         120
-
-
-unsigned int CheckFault(void);
-unsigned int CheckHeaterFault(void);
-
-
 void DoStateMachine(void) {
   
   switch (global_data_A36507.control_state) {
+
     
   case STATE_STARTUP:
     InitializeA36507();
     global_data_A36507.control_state = STATE_WAITING_FOR_INITIALIZATION;
-
     break;
 
+
   case STATE_WAITING_FOR_INITIALIZATION:
+    _SYNC_CONTROL_RESET_ENABLE = 1;
+    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 1;
+    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
+    // Calculate all of the warmup counters based on previous warmup completed
     CalculateHeaterWarmupTimers();
-    
     while (global_data_A36507.control_state == STATE_WAITING_FOR_INITIALIZATION) {
-      // DPARKER wait for all boards to report that they have been initialized
-      global_data_A36507.control_state = STATE_WARMUP;
+      DoA36507();
+      if (CheckAllModulesConfigured()) {
+      	global_data_A36507.control_state = STATE_WARMUP;
+      }
     }
     break;
     
 
   case STATE_WARMUP:
-    // Calculate all of the warmup counters based on previous warmup completed
-
+    // Note that the warmup timers start counting in "Waiting for Initialization"
+    _SYNC_CONTROL_RESET_ENABLE = 1;
+    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 1;
+    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
     while (global_data_A36507.control_state == STATE_WARMUP) {
       DoA36507();
-
       if (global_data_A36507.warmup_done) {
 	global_data_A36507.control_state = STATE_STANDBY;
       }
-      
-      if (CheckFault()) {
-	global_data_A36507.control_state = STATE_COLD_FAULT;
+      if (CheckSystemFault()) {
+	global_data_A36507.control_state = STATE_FAULT_SYSTEM;
       }
-      
     }
     break;
     
         
   case STATE_STANDBY:
-    while (global_data_A36507.control_state == STATE_STANDBY) {
+    _SYNC_CONTROL_RESET_ENABLE = 1;
+    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 0;
+    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
+     while (global_data_A36507.control_state == STATE_STANDBY) {
       DoA36507();
-      
-      if (CheckCustomerHVOn()) {
+      if (!_PULSE_SYNC_CUSTOMER_HV_OFF) {
 	global_data_A36507.control_state = STATE_DRIVE_UP;
       }
-      
-      if (CheckFault()) {
-	global_data_A36507.control_state = STATE_WARM_FAULT;
+      if (CheckHVOffFault()) {
+	global_data_A36507.control_state = STATE_FAULT_HOLD;
       }
-      
-    }
+     }
     break;
 
 
+#define DRIVE_UP_TIMEOUT            1000  // 10 Seconds
   case STATE_DRIVE_UP:
-    // Enable HV ON Command to Pulse Sync Board
+    _SYNC_CONTROL_RESET_ENABLE = 0;
+    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 0;
+    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
+    global_data_A36507.drive_up_timer = 0;
     while (global_data_A36507.control_state == STATE_DRIVE_UP) {
-      
       DoA36507();
-      
-      if (CheckReadyForOperation()) {
-	global_data_A36507.control_state = STATE_READY;
+      // Check to see if the HV Lambda is ready, if it is check all faults and move to ready or fault hold
+      if (!_HV_LAMBDA_NOT_READY) {
+	if (CheckFault()) {
+	  global_data_A36507.control_state = STATE_FAULT_HOLD;
+	} else {
+	  global_data_A36507.control_state = STATE_READY;
+	}
       }
-
-      if (!CheckCustomerHVOn()) {
+      if (_PULSE_SYNC_CUSTOMER_HV_OFF) {
 	global_data_A36507.control_state = STATE_STANDBY;
       }
-      
-      if (CheckFault()) {
-	global_data_A36507.control_state = STATE_WARM_FAULT;
+      if (global_data_A36507.drive_up_timer >= DRIVE_UP_TIMEOUT) {
+	_FAULT_DRIVE_UP_TIMEOUT = 1;
+	global_data_A36507.control_state = STATE_FAULT_HOLD;
       }
-      
+      if (CheckHVOffFault()) {
+	global_data_A36507.control_state = STATE_FAULT_HOLD;
+      }
     }
     break;
-
 
 
   case STATE_READY:
-    // Enable HV ON Command to Pulse Sync Board
+    // Enable XRAYs to Pulse Sync Board
+    _SYNC_CONTROL_RESET_ENABLE = 0;
+    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 0;
+    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 0;
     while (global_data_A36507.control_state == STATE_READY) {
-      
       DoA36507();
-      
-      if (!CheckCustomerHVOn()) {
+      if (_PULSE_SYNC_CUSTOMER_HV_OFF) {
 	global_data_A36507.control_state = STATE_STANDBY;
       }
-      
       if (CheckFault()) {
-	global_data_A36507.control_state = STATE_WARM_FAULT;
-      }
-      
-    }
-    break;
-
-
-
-  case STATE_WARM_FAULT:
-    while (global_data_A36507.control_state == STATE_WARM_FAULT) {
-      ETMCanDoCan();
-      TCPmodbus_task();
-      // Write Heater Times
-
-
-      // IF Customer HV is OFF, attempt to reset all faults  
-      
-      if (!CheckFault()) {
-	global_data_A36507.control_state = STATE_STANDBY;
-      }
-      
-      if (CheckHeaterFault()) {
-	global_data_A36507.control_state = STATE_COLD_FAULT;
+	global_data_A36507.control_state = STATE_FAULT_HOLD;
       }
     }
     break;
 
 
-  case STATE_COLD_FAULT:
-    // Disable HV Lambda
-    // Disable HV ON Command to Pulse Sync Board
-    // Disable Gun Driver High Voltage
-    while (global_data_A36507.control_state == STATE_COLD_FAULT) {
-      ETMCanDoCan();
-      TCPmodbus_task();
-      // Thyratron Heater -- Increment Thyratron Heater Counter, If greater than warmup time, write the time
-      // Gun Driver Heater -- If Gun Driver Heater Enabled, Increment the Thyratro Heater Counter (else decrement by 2), If greater than warmup time, write the time
-      // Magnetron Heater -- If the Magnetron/Heater is not Faulted, Increment the Magnetron Heater Counter, If greater than warmup, write the time
-      
-      // IF Customer HV is OFF, attempt to reset all faults
-
-      if (!CheckFault()) {
-	global_data_A36507.control_state = STATE_WARMUP;
-      }
-    }
+  case STATE_XRAY_ON:
+    _SYNC_CONTROL_RESET_ENABLE = 0;
+    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 0;
+    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 0;
     
+    while (global_data_A36507.control_state == STATE_XRAY_ON) {
+    }
     break;
+
+
+  case STATE_FAULT_HOLD:
+    _SYNC_CONTROL_RESET_ENABLE = 0;
+    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 1;
+    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
+    while (global_data_A36507.control_state == STATE_FAULT_HOLD) {
+      DoA36507();
+      if (_PULSE_SYNC_CUSTOMER_HV_OFF) {
+	global_data_A36507.control_state = STATE_FAULT_RESET;
+      }
+    }
+    break;
+
+
+  case STATE_FAULT_RESET:
+    _SYNC_CONTROL_RESET_ENABLE = 1;
+    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 1;
+    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
+    while (global_data_A36507.control_state == STATE_FAULT_RESET) {
+      DoA36507();
+      if (CheckHVOffFault() == 0) {
+	global_data_A36507.control_state = STATE_WAITING_FOR_INITIALIZATION;
+      }
+      if (CheckSystemFault()) {
+	global_data_A36507.control_state = STATE_FAULT_SYSTEM;
+      }
+    }
+    break;
+
     
+  case STATE_FAULT_SYSTEM:
+    _SYNC_CONTROL_RESET_ENABLE = 0;
+    _SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 1;
+    _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
+    while (1) {
+      DoA36507();
+    }
+    break;
     
     
   default:
-    global_data_A36507.control_state = STATE_COLD_FAULT;
+    global_data_A36507.control_state = STATE_FAULT_SYSTEM;
     break;
   }
-  
 }
 
-unsigned int CheckHeaterFault(void) {
-  return 0;
+
+unsigned int CheckHVOffFault(void) {
+  unsigned int fault = 0;
+  
+  if (_HEATER_MAGNET_OFF) {
+    if (!_FAULT_HTR_MAG_NOT_OPERATE) {
+      // There is a new Heater Magnet fault
+      SendToEventLog(&etm_can_heater_magnet_mirror.status_data);
+    }
+#ifndef __IGNORE_HEATER_MAGNET_MODULE
+    fault = 1;
+#endif
+  }
+  _FAULT_HTR_MAG_NOT_OPERATE = _HEATER_MAGNET_OFF;
+  
+  if (!_GUN_HEATER_ON) {
+    if (!_FAULT_GUN_HEATER_OFF) {
+      // The gun heater has just turned off
+      _FAULT_GUN_DVR_NOT_OPERATE = 1;
+      SendToEventLog(&etm_can_gun_driver_mirror.status_data);
+    }
+#ifndef __IGNORE_GUN_DRIVER_MODULE
+    fault = 1;
+#endif
+  }
+  _FAULT_GUN_HEATER_OFF = !_GUN_HEATER_ON;
+
+  return fault;
 }
 
 unsigned int CheckFault(void) {
+  unsigned int fault = 0;
+  
+  // Update the fault status of each of the boards.
+  if (_HV_LAMBDA_NOT_READY) {
+    if (!_FAULT_HV_LAMBDA_NOT_OPERATE) {
+      // There is a NEW Lambda fault.
+      SendToEventLog(&etm_can_hv_lamdba_mirror.status_data);
+    } 
+#ifndef __IGNORE_HV_LAMBDA_MODULE
+    fault = 1;
+#endif
+  }
+  _FAULT_HV_LAMBDA_NOT_OPERATE = _HV_LAMBDA_NOT_READY;
+  
+  
+  if (_ION_PUMP_NOT_READY) {
+    if (!_FAULT_ION_PUMP_NOT_OEPRATE) {
+      // There is a NEW Ion Pump Fault
+      SendToEventLog(&etm_can_ion_pump_mirror.status_data);
+    }
+#ifndef __IGNORE_ION_PUMP_MODULE
+    fault = 1;
+#endif
+  }
+  _FAULT_ION_PUMP_NOT_OEPRATE = _ION_PUMP_NOT_READY;
+  
+  if (_AFC_NOT_READY) {
+    if (!_FAULT_AFC_NOT_OPERATE) {
+      // There is a NEW AFC Fault
+      SendToEventLog(&etm_can_afc_mirror.status_data);
+    }
+#ifndef __IGNORE_AFC_MODULE
+    fault = 1;
+#endif
+  }
+  _FAULT_AFC_NOT_OPERATE = _AFC_NOT_READY;
+
+  if (_COOLING_NOT_READY) {
+    if (!_FAULT_COOLING_NOT_OPERATE) {
+      // There is a NEW Cooling Fault
+      SendToEventLog(&etm_can_cooling_mirror.status_data);
+    }
+#ifndef __IGNORE_COOLING_INTERFACE_MODULE
+    fault = 1;
+#endif  
+  }
+  _FAULT_COOLING_NOT_OPERATE = _COOLING_NOT_READY;
+  
+  if (_GUN_DRIVER_NOT_READY) {
+    if ((!_FAULT_GUN_DVR_NOT_OPERATE) && (_GUN_HEATER_ON)) {
+      // There is a NEW Gun Driver Fault (if it was the gun heater turning off, it gets logged in CheckHVOffFault()
+      SendToEventLog(&etm_can_gun_driver_mirror.status_data);
+    }
+#ifndef __IGNORE_GUN_DRIVER_MODULE
+    fault = 1;
+#endif
+  }
+  _FAULT_GUN_DVR_NOT_OPERATE = _GUN_DRIVER_NOT_READY;
+  
+  if (_PULSE_CURRENT_NOT_READY) {
+    if (!_FAULT_PULSE_CURRENT_MON_NOT_OPERATE) {
+      // There is a new pulse current monitor fault
+      SendToEventLog(&etm_can_magnetron_current_mirror.status_data);
+    }
+#ifndef __IGNORE_PULSE_CURRENT_MODULE
+    fault = 1;
+#endif
+  }
+  _FAULT_PULSE_CURRENT_MON_NOT_OPERATE = _PULSE_CURRENT_NOT_READY;
+  
+  if (_PULSE_SYNC_NOT_READY) {    
+    if (!_FAULT_PULSE_SYNC_NOT_OPERATE) {
+      // There is a new pulse sync fault
+      SendToEventLog(&etm_can_pulse_sync_mirror.status_data);
+    }
+#ifndef __IGNORE_PULSE_SYNC_MODULE
+    fault = 1;
+#endif
+  }
+  _FAULT_PULSE_SYNC_NOT_OPERATE = _PULSE_SYNC_NOT_READY;
+  
+  return fault;
+}
+
+void SendToEventLog(ETMCanStatusRegister* ptr_status) {
+  
+}
+
+
+unsigned int CheckSystemFault(void) {
   return 0;
 }
+
+
 
 
 
@@ -279,7 +398,8 @@ unsigned int CheckFault(void) {
 
 
 #define MAGNETRON_HEATER_WARM_UP_TIME        300   // 5 minutes
-#define THYRATRON_WARM_UP_TIME               900   // 15 minutes
+//#define THYRATRON_WARM_UP_TIME               900   // 15 minutes
+#define THYRATRON_WARM_UP_TIME               15   // 15 seconds
 #define GUN_DRIVER_HEATER_WARM_UP_TIME       300   // 5 minutes  
 
 
@@ -324,12 +444,19 @@ void DoA36507(void) {
   ETMCanDoCan();
   TCPmodbus_task();
 
+  
+
+
+
+  etm_can_ethernet_board_data.control_state_mirror = global_data_A36507.control_state;
 
   local_debug_data.debug_0 = global_data_A36507.thyratron_warmup_counter_seconds;
   local_debug_data.debug_1 = global_data_A36507.magnetron_heater_warmup_counter_seconds;
   local_debug_data.debug_2 = global_data_A36507.gun_driver_heater_warmup_counter_seconds;
   local_debug_data.debug_3 = global_data_A36507.control_state;
   
+  local_debug_data.debug_D = global_data_A36507.drive_up_timer;
+  local_debug_data.debug_E = global_data_A36507.control_state;
   local_debug_data.debug_F = *(unsigned int*)&etm_can_sync_message.sync_0_control_word;
 
 
@@ -337,17 +464,20 @@ void DoA36507(void) {
     // 10ms Timer has expired
     _T5IF = 0;
     
+    if (global_data_A36507.control_state == STATE_DRIVE_UP) {
+      global_data_A36507.drive_up_timer++;
+    }
+
     // DPARKER Check for cooling fault, and set the sync bit message as appropriate
 
 
     // Run at 1 second interval
     global_data_A36507.millisecond_counter += 10;
-
     if (global_data_A36507.millisecond_counter >= 1000) {
       global_data_A36507.millisecond_counter = 0;
     }
 
-
+    // Run once a second at 0 milliseconds
     if (global_data_A36507.millisecond_counter == 0) {
       // Read Date/Time from RTC and update the warmup up counters
       ReadDateAndTime(&U6_DS3231, &global_data_A36507.time_now);
@@ -360,7 +490,7 @@ void DoA36507(void) {
 	global_data_A36507.thyratron_heater_last_warm_seconds = seconds_now;
       }
       
-      if (_HEATER_MAGNET_CONNECTED && _HEATER_MAGNET_ON) {
+      if ((!_HEATER_MAGNET_NOT_CONNECTED) && (!_HEATER_MAGNET_OFF)) {
 	// The Magnetron heater is on
 	if (global_data_A36507.magnetron_heater_warmup_counter_seconds > 0) {
 	  global_data_A36507.magnetron_heater_warmup_counter_seconds--;
@@ -374,7 +504,7 @@ void DoA36507(void) {
 	}
       }
 	
-      if (_GUN_DRIVER_CONNECTED && _GUN_HEATER_ON) {
+      if (!_GUN_DRIVER_NOT_CONNECTED && _GUN_HEATER_ON) {
 	// The gun heater is on
 	if (global_data_A36507.gun_driver_heater_warmup_counter_seconds > 0) {
 	  global_data_A36507.gun_driver_heater_warmup_counter_seconds--;
@@ -387,18 +517,103 @@ void DoA36507(void) {
 	  global_data_A36507.gun_driver_heater_warmup_counter_seconds = GUN_DRIVER_HEATER_WARM_UP_TIME;
 	}
       }
-    }
+      // Check for warmup done
+      
+#ifdef __IGNORE_HEATER_MAGNET_MODULE
+      global_data_A36507.magnetron_heater_warmup_counter_seconds = 0;
+#endif
+      
+#ifdef __IGNORE_GUN_DRIVER_MODULE
+      global_data_A36507.gun_driver_heater_warmup_counter_seconds = 0;
+#endif
+      
+      if ((global_data_A36507.thyratron_warmup_counter_seconds) || (global_data_A36507.magnetron_heater_warmup_counter_seconds) || (global_data_A36507.gun_driver_heater_warmup_counter_seconds)) {
+	global_data_A36507.warmup_done = 0;
+      } else {
+	global_data_A36507.warmup_done = 1;
+      }
 
+      // Check if we need to send configuration to the pulse sync board.
+      if (_PULSE_SYNC_NOT_CONFIGURED) {
+	global_data_A36507.send_pulse_sync_config = 1;
+      } else {
+	global_data_A36507.send_pulse_sync_config = 0;
+      }
+
+
+    } //     if (global_data_A36507.millisecond_counter == 0) {
+
+    // Run once a second at 250 milliseconds
     if (global_data_A36507.millisecond_counter == 250) {
       // Write Warmup Done Timers to EEPROM
       ETMEEPromWritePage(&U5_FM24C64B, EEPROM_PAGE_HEATER_TIMERS, 6, (unsigned int*)&global_data_A36507.magnetron_heater_last_warm_seconds);
     }
-    
+
+
+    // Run once a second at 500 milliseconds
     if (global_data_A36507.millisecond_counter == 500) {
       // Write Seconds on Counters to EEPROM
       ETMEEPromWritePage(&U5_FM24C64B, EEPROM_PAGE_ON_TIME, 6, (unsigned int*)&global_data_A36507.system_powered_seconds);
     }
   }
+}
+
+
+unsigned int CheckAllModulesConfigured(void) {
+  unsigned int system_configured;
+  
+  system_configured = 1;
+
+#ifndef __IGNORE_HV_LAMBDA_MODULE
+  if ((_HV_LAMBDA_NOT_CONNECTED) || (_HV_LAMBDA_NOT_CONFIGURED)) {
+    system_configured = 0;
+  }
+#endif
+
+#ifndef __IGNORE_ION_PUMP_MODULE
+  if ((_ION_PUMP_NOT_CONNECTED) || (_ION_PUMP_NOT_CONFIGURED)) {
+    system_configured = 0;
+  }
+#endif
+
+#ifndef __IGNORE_AFC_MODULE
+  if ((_AFC_NOT_CONNECTED) || (_AFC_NOT_CONFIGURED)) {
+    system_configured = 0;
+  }
+#endif  
+
+#ifndef __IGNORE_COOLING_INTERFACE_MODULE
+  if ((_COOLING_NOT_CONNECTED) || (_COOLING_NOT_CONFIGURED)) {
+    system_configured = 0;
+  }
+#endif  
+
+#ifndef __IGNORE_HEATER_MAGNET_MODULE
+  if ((_HEATER_MAGNET_NOT_CONNECTED) || (_HEATER_MAGNET_NOT_CONFIGURED)) {
+    system_configured = 0;
+  }
+#endif
+
+#ifndef __IGNORE_GUN_DRIVER_MODULE
+  if ((_GUN_DRIVER_NOT_CONNECTED) || (_GUN_DRIVER_NOT_CONFIGURED)) {
+    system_configured = 0;
+  }
+#endif
+
+#ifndef __IGNORE_PULSE_CURRENT_MODULE
+  if ((_PULSE_CURRENT_NOT_CONNECTED) || (_PULSE_CURRENT_NOT_CONFIGURED)) {
+    system_configured = 0;
+  }
+#endif
+
+#ifndef __IGNORE_PULSE_SYNC_MODULE
+  if ((_PULSE_SYNC_NOT_CONNECTED) || (_PULSE_SYNC_NOT_CONFIGURED)) {
+    system_configured = 0;
+  }
+#endif
+
+  return system_configured;
+
 }
 
 void InitializeA36507(void) {
@@ -413,6 +628,18 @@ void InitializeA36507(void) {
   etm_can_my_configuration.firmware_major_rev = FIRMWARE_AGILE_REV;
   etm_can_my_configuration.firmware_branch = FIRMWARE_BRANCH;
   etm_can_my_configuration.firmware_minor_rev = FIRMWARE_MINOR_REV;
+
+
+  // Set the not connected bits for all boards
+  _HV_LAMBDA_NOT_CONNECTED     = 1;
+  _ION_PUMP_NOT_CONNECTED      = 1;
+  _AFC_NOT_CONNECTED           = 1;
+  _COOLING_NOT_CONNECTED       = 1;
+  _HEATER_MAGNET_NOT_CONNECTED = 1;
+  _GUN_DRIVER_NOT_CONNECTED    = 1;
+  _PULSE_CURRENT_NOT_CONNECTED = 1;
+  _PULSE_SYNC_NOT_CONNECTED    = 1;
+
 
   // Initialize all I/O Registers
   TRISA = A36507_TRISA_VALUE;

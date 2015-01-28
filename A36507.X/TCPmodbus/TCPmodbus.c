@@ -418,7 +418,7 @@ void InitModbusData(void)
    	eth_tx_ethernet_board.debug_data    = &local_debug_data;
    	eth_tx_ethernet_board.can_status    = &local_can_errors;
    	eth_tx_ethernet_board.configuration = &etm_can_my_configuration;
-   	eth_tx_ethernet_board.custom_data   = &etm_can_ethernet_board_data.fault_status_bits;
+   	eth_tx_ethernet_board.custom_data   = &etm_can_ethernet_board_data.status_received_register;
 	eth_tx_ethernet_board.custom_data_word_count = 5; 
 	eth_tx_ethernet_board.data_identification = 9;
 
