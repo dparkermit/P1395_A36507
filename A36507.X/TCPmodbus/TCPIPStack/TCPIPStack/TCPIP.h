@@ -149,7 +149,8 @@
 			#undef HTTP_MPFS_UPLOAD
 		#endif
 	#endif
-	
+
+#if 0  // don't need DNS 	
 	// Make sure that the DNS client is enabled if services require it
 	#if defined(STACK_USE_GENERIC_TCP_CLIENT_EXAMPLE) || \
 		defined(STACK_USE_SNTP_CLIENT) || \
@@ -160,6 +161,7 @@
 	        #define STACK_USE_DNS
 	    #endif
 	#endif
+#endif
 	
 	// Make sure that STACK_CLIENT_MODE is defined if a service 
 	// depends on it
