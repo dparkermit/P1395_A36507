@@ -13,17 +13,23 @@
 
 #include "ETM_CAN.h"
 
-void TCPmodbus_init(void);
+extern void TCPmodbus_init(void);
 
-void TCPmodbus_task(void);
+extern void TCPmodbus_task(void);
+
+extern unsigned int SendCalibrationData(unsigned int index, unsigned int scale, unsigned int offset);
+extern unsigned int SendPulseData(unsigned char *ptr);
 
 
+#define TEST_MODBUS	   1
 
 
 #define MAX_TX_SIZE    255
-//#define MAX_DATA_SIZE  200	// leave some room for modbus header
+#define MAX_DATA_SIZE  200	// leave some room for modbus header
 
-#define MODBUS_COMMAND_TOTAL     10
+#define ETH_EVENT_SIZE  100
+
+#define MODBUS_COMMAND_REFRESH_TOTAL     10
 
 enum
 {
@@ -36,7 +42,11 @@ enum
 	MODBUS_WR_MAGNETRON_CURRENT,
 	MODBUS_WR_PULSE_SYNC,
 	MODBUS_WR_ETHERNET,
-	MODBUS_RD_COMMAND,
+	MODBUS_WR_EVENTS,	   /* 10 */
+	
+	MODBUS_WR_ONE_CAL_ENTRY,
+	MODBUS_WR_PULSE_LOG,
+	MODBUS_RD_COMMAND_DETAIL,
 
 
 };
@@ -70,34 +80,45 @@ extern ETMEthernetTXDataStructure  	eth_tx_pulse_sync;
 extern ETMEthernetTXDataStructure  	eth_tx_ethernet_board;
 
 
-
-/*
-Therefore our message in the "data_buffer" would look something like this
-data_buffer[0] = data_identification;                   // Transaction ID High Byte
-data_buffer[1] = (transaction identification)           // Transaction ID Low Byte
-data_buffer[2] = 0;                                     // Protocal ID High Byte
-data_buffer[3] = 0;                                     // Protocal ID Low Byte
-data_buffer[4] = 0;                                     // Data Length High Byte = 0
-data_buffer[5] = n;                                     // Data Length Low BYte =  2 + 108 + custom_data_element_count*2
-data_buffer[6] = 0;                                     // Unit ID = 0
-data_buffer[7] = 0x10;                                  // Function Code
-data_buffer[8]
-.
-.
-.
-.
-.
-data_buffer[115] = Standard Data
-data_buffer[116]
-data_buffer[116+2*custom_data_element_count] = Board specific data
-
-*/
 typedef struct {
-  unsigned int command_ready;
-  unsigned int command_index;
-  unsigned int command_data;
-} DevelopmentRegister;
+  unsigned int index ;                  // command index
+  unsigned int data_2;
+  unsigned int data_1;
+  unsigned int data_0;
+} ETMEthernetMessageFromGUI;
 
+
+#define ETH_GUI_MESSAGE_BUFFER_SIZE   8
+extern ETMEthernetMessageFromGUI eth_message_from_GUI[ ETH_GUI_MESSAGE_BUFFER_SIZE ];
+
+
+typedef struct {
+  unsigned int index ;                  // command index
+  unsigned int scale;
+  unsigned int offset;
+} ETMEthernetCalToGUI;
+
+
+#define ETH_CAL_TO_GUI_BUFFER_SIZE  8
+extern ETMEthernetCalToGUI eth_cal_to_GUI[ ETH_CAL_TO_GUI_BUFFER_SIZE ];
+
+
+#define ETH_PULSE_TO_GUI_DATA_SIZE  128
+
+typedef struct {
+  unsigned char data[ETH_PULSE_TO_GUI_DATA_SIZE];                  // command index
+} ETMEthernetPulseToGUI;
+
+
+
+#define ETH_PULSE_TO_GUI_BUFFER_SIZE  16
+extern ETMEthernetPulseToGUI eth_pulse_to_GUI[ ETH_PULSE_TO_GUI_BUFFER_SIZE ];
+
+#ifdef TEST_MODBUS
+extern unsigned char event_data[ETH_EVENT_SIZE];
+#endif
+
+extern ETMEthernetMessageFromGUI GetNextMessage(void);
 #if 0
 
 // PULSE BY PULSE LOGGING DATA
@@ -116,16 +137,6 @@ unsigned int set_points[size_tbd];
 // Element 1 would be the "engineer level" command authoriization
 // Element 2 through N would store the configuration data 
 
-
-
-unsigned int development_test_register[size_tbd];
-// This would command
-
-typedef struct {
-  unsigned int command_ready;
-  unsigned int command_index;
-  unsigned int command_data;
-} DevelopmentRegister;
 
 #endif
 
