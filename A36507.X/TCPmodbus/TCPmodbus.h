@@ -75,9 +75,9 @@ extern ETMEthernetTXDataStructure   eth_tx_afc;
 extern ETMEthernetTXDataStructure   eth_tx_cooling;
 extern ETMEthernetTXDataStructure   eth_tx_heater_magnet;
 extern ETMEthernetTXDataStructure   eth_tx_gun_driver;
-extern ETMEthernetTXDataStructure  	eth_tx_magnetron_current;
-extern ETMEthernetTXDataStructure  	eth_tx_pulse_sync;
-extern ETMEthernetTXDataStructure  	eth_tx_ethernet_board;
+extern ETMEthernetTXDataStructure   eth_tx_magnetron_current;
+extern ETMEthernetTXDataStructure   eth_tx_pulse_sync;
+extern ETMEthernetTXDataStructure   eth_tx_ethernet_board;
 
 
 typedef struct {
@@ -119,26 +119,8 @@ extern unsigned char event_data[ETH_EVENT_SIZE];
 #endif
 
 extern ETMEthernetMessageFromGUI GetNextMessage(void);
-#if 0
-
-// PULSE BY PULSE LOGGING DATA
-typedef struct {
-  // we need to store 36 bytes of data each pulse.
-  // If we send out data once every 8 pulses then we will have 288 bytes of data + 8 bytes of header which means 296 bytes total.
-  // This will be our largest transmit so the transmit buffer must be at leas this large
-  // We can impliment this later but keep in mind that it will need to happen
-  
-} ETMETHERNETPULSEDATALOG;
-
-
-unsigned int set_points[size_tbd];
-// Element 0 and Element 1 would store the GUI set command authorization
-// Element 0 would be the "technicial level" command authorization
-// Element 1 would be the "engineer level" command authoriization
-// Element 2 through N would store the configuration data 
-
-
-#endif
-
+/*
+  index will be 0xFFFF if there is no message
+*/
 
 #endif

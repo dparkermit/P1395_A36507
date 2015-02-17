@@ -1192,5 +1192,3 @@ void GenericTCPClient(void)
 }
 
 
-unsigned int command_count;
-

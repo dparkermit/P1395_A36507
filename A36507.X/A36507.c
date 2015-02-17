@@ -20,6 +20,8 @@ void UpdateHeaterScale(void);
 unsigned int CalculatePulseEnergyMilliJoules(unsigned int lambda_voltage);
 
 
+void ExecuteEthernetCommand(unsigned int personality);
+
 void DoA36507(void);
 
 /*
@@ -488,6 +490,7 @@ void CalculateHeaterWarmupTimers(void) {
 void DoA36507(void) {
   ETMCanDoCan();
   TCPmodbus_task();
+  ExecuteEthernetCommand(1);
 
   // Check to see if cooling is present
   _SYNC_CONTROL_COOLING_FAULT = 0;
@@ -1022,7 +1025,9 @@ void ReadSystemConfigurationFromEEProm(unsigned int personality) {
   if (personality >= 5) {
     personality = 1;
   }
-  personality--;  // Personality is now a register offset
+  if (personality) {
+    personality--;  // Personality is now a register offset
+  }
   
   // Load data for HV Lambda
   etm_can_hv_lamdba_mirror.hvlambda_low_energy_set_point = ETMEEPromReadWord(&U5_FM24C64B, (EEPROM_REGISTER_LAMBDA_LOW_ENERGY_SET_POINT + (2*personality)));
@@ -1063,6 +1068,165 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
   ETMEEPromWritePage(&U5_FM24C64B, EEPROM_PAGE_SYSTEM_CONFIG_PULSE_SYNC_PER_2, 16, (unsigned int*)&eeprom_default_values_p_sync_per_1);
   ETMEEPromWritePage(&U5_FM24C64B, EEPROM_PAGE_SYSTEM_CONFIG_PULSE_SYNC_PER_3, 16, (unsigned int*)&eeprom_default_values_p_sync_per_1);
   ETMEEPromWritePage(&U5_FM24C64B, EEPROM_PAGE_SYSTEM_CONFIG_PULSE_SYNC_PER_4, 16, (unsigned int*)&eeprom_default_values_p_sync_per_1);
+}
+
+
+
+#define REGISTER_HEATER_CURRENT_AT_STANDBY                                                 0x0000
+#define REGISTER_ELECTROMAGNET_CURRENT                                                     0x0001
+#define REGISTER_HOME_POSITION                                                             0x0005
+#define REGISTER_AFC_OFFSET                                                                0x0009
+#define REGISTER_HIGH_ENERGY_SET_POINT                                                     0x0010
+#define REGISTER_LOW_ENERGY_SET_POINT                                                      0x0011
+#define REGISTER_GUN_DRIVER_HEATER_VOLTAGE                                                 0x0020
+#define REGISTER_GUN_DRIVER_HIGH_ENERGY_PULSE_TOP_VOLTAGE                                  0x0021
+#define REGISTER_GUN_DRIVER_LOW_ENERGY_PULSE_TOP_VOLTAGE                                   0x0022
+#define REGISTER_GUN_DRIVER_CATHODE_VOLTAGE                                                0x0023
+#define REGISTER_CMD_COOLANT_INTERFACE_ALLOW_25_MORE_SF6_PULSES                            0x6082
+#define REGISTER_CMD_COOLANT_INTERFACE_ALLOW_SF6_PULSES_WHEN_PRESSURE_BELOW_LIMIT          0x6083
+#define REGISTER_CMD_COOLANT_INTERFACE_SET_SF6_PULSES_IN_BOTTLE                            0x6084
+#define REGISTER_SPECIAL_ECB_LOAD_DEFAULT_SETTINGS_TO_EEPROM_AND_REBOOT                    0xE080
+#define REGISTER_SPECIAL_ECB_REST_ARC_AND_PULSE_COUNT                                      0xE081
+#define REGISTER_SPECIAL_ECB_RESET_SECONDS_POWERED_HV_ON_XRAY_ON                           0xE082
+#define REGISTER_DEBUG_TOGGLE_RESET                                                        0xEF00
+#define REGISTER_DEBUG_TOGGLE_HIGH_SPEED_LOGGING                                           0xEF01
+#define REGISTER_DEBUG_TOGGLE_HV_ENABLE                                                    0xEF02
+#define REGISTER_DEBUG_TOGGLE_XRAY_ENABLE                                                  0xEF03
+#define REGISTER_DEBUG_TOGGLE_COOLING_FAULT                                                0xEF04
+
+
+
+
+void ExecuteEthernetCommand(unsigned int personality) {
+  ETMEthernetMessageFromGUI next_message;
+  unsigned int eeprom_register;
+
+  // DPARKER what happens if this is called before personality has been read??? 
+  // Easy to solve in the state machine, just don't call until state when the personality is known
+
+  if (personality >= 5) {
+    personality = 1;
+  }
+  if (personality) {
+    personality--;  // Personality is now a register offset
+  }
+  next_message = GetNextMessage();
+  if (next_message.index == 0xFFFF) {
+    // there was no message
+    return;
+  }
+  
+  if ((next_message.index & 0x0F00) == 0x0100) {
+    // this is a calibration set message, route to appropriate board
+    //SendCalibrationSetPointToSlave(next_message);
+  } else if ((next_message.index & 0x0F00) == 0x0200) {
+    // this is a calibration requestion message, route to appropriate board and await response
+    // DPARKER - HOW DOES THIS WORK?  DO WE HOLD WHILE WAITING? DO WE ONLY RESPOND IN CERTAIN STATES???
+  } else {
+    // This message needs to be processsed by the ethernet control board
+    switch (next_message.index) {
+    case REGISTER_HEATER_CURRENT_AT_STANDBY:
+      etm_can_heater_magnet_mirror.htrmag_heater_current_set_point = next_message.data_2;
+      eeprom_register = next_message.index;
+      ETMEEPromWriteWord(&U5_FM24C64B, eeprom_register, next_message.data_2);
+      break;
+
+    case REGISTER_ELECTROMAGNET_CURRENT:
+      etm_can_heater_magnet_mirror.htrmag_magnet_current_set_point = next_message.data_2;
+      eeprom_register = next_message.index + personality;
+      ETMEEPromWriteWord(&U5_FM24C64B, eeprom_register, next_message.data_2);
+      break;
+
+    case REGISTER_HOME_POSITION:
+      etm_can_afc_mirror.afc_home_position = next_message.data_2;
+      eeprom_register = next_message.index + personality;
+      ETMEEPromWriteWord(&U5_FM24C64B, eeprom_register, next_message.data_2);
+      break;
+
+    case REGISTER_AFC_OFFSET:
+      etm_can_afc_mirror.afc_offset = next_message.data_2;
+      eeprom_register = next_message.index;
+      ETMEEPromWriteWord(&U5_FM24C64B, eeprom_register, next_message.data_2);
+      break;
+      
+    case REGISTER_HIGH_ENERGY_SET_POINT:
+      // DPARKER figure out how this is going to work - voltage or current programming
+      break;
+
+    case REGISTER_LOW_ENERGY_SET_POINT:
+      // DPARKER figure out how this is going to work - voltage or current programming
+      break;
+
+    case REGISTER_GUN_DRIVER_HEATER_VOLTAGE:
+      etm_can_gun_driver_mirror.gun_heater_voltage_set_point = next_message.data_2;
+      eeprom_register = next_message.index;
+      ETMEEPromWriteWord(&U5_FM24C64B, eeprom_register, next_message.data_2);
+      break;
+
+    case REGISTER_GUN_DRIVER_HIGH_ENERGY_PULSE_TOP_VOLTAGE:
+      etm_can_gun_driver_mirror.gun_high_energy_pulse_top_voltage_set_point = next_message.data_2;
+      eeprom_register = next_message.index + personality * 3;
+      ETMEEPromWriteWord(&U5_FM24C64B, eeprom_register, next_message.data_2);
+      break;
+
+    case REGISTER_GUN_DRIVER_LOW_ENERGY_PULSE_TOP_VOLTAGE:
+      etm_can_gun_driver_mirror.gun_low_energy_pulse_top_voltage_set_point = next_message.data_2;
+      eeprom_register = next_message.index + personality * 3;
+      ETMEEPromWriteWord(&U5_FM24C64B, eeprom_register, next_message.data_2);
+      break;
+
+    case REGISTER_GUN_DRIVER_CATHODE_VOLTAGE:
+      etm_can_gun_driver_mirror.gun_cathode_voltage_set_point = next_message.data_2;
+      eeprom_register = next_message.index + personality * 3;
+      ETMEEPromWriteWord(&U5_FM24C64B, eeprom_register, next_message.data_2);
+      break;
+
+      // DPARKER ADD IN THE PULSE SYNC SETTINGS
+      
+    case REGISTER_CMD_COOLANT_INTERFACE_ALLOW_25_MORE_SF6_PULSES:
+      break;
+
+    case REGISTER_CMD_COOLANT_INTERFACE_ALLOW_SF6_PULSES_WHEN_PRESSURE_BELOW_LIMIT:
+      break;
+
+    case REGISTER_CMD_COOLANT_INTERFACE_SET_SF6_PULSES_IN_BOTTLE:
+      break;
+
+    case REGISTER_SPECIAL_ECB_REST_ARC_AND_PULSE_COUNT:
+      break;
+
+    case REGISTER_SPECIAL_ECB_RESET_SECONDS_POWERED_HV_ON_XRAY_ON:
+      // Sets all to the value in data_1:data_0
+      break;
+
+    case REGISTER_SPECIAL_ECB_LOAD_DEFAULT_SETTINGS_TO_EEPROM_AND_REBOOT:
+      break;
+
+    case REGISTER_DEBUG_TOGGLE_RESET:
+      if (_SYNC_CONTROL_RESET_ENABLE) {
+	_SYNC_CONTROL_RESET_ENABLE = 0;
+      } else {
+	_SYNC_CONTROL_RESET_ENABLE = 1;
+      }
+      break;
+
+    case REGISTER_DEBUG_TOGGLE_HIGH_SPEED_LOGGING:
+      break;
+
+    case REGISTER_DEBUG_TOGGLE_HV_ENABLE:
+      break;
+
+    case REGISTER_DEBUG_TOGGLE_XRAY_ENABLE:
+      break;
+
+    case REGISTER_DEBUG_TOGGLE_COOLING_FAULT:
+      break;
+
+
+    }
+  }
+  
+  
 }
 
 
