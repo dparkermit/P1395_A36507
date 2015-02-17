@@ -43,6 +43,7 @@
       <itemPath>../../P1395_Modules/DS3231.h</itemPath>
       <itemPath>../../P1395_Modules/ETM_ANALOG.h</itemPath>
       <itemPath>../../P1395_Modules/ETM_SCALE.h</itemPath>
+      <itemPath>../../P1395_Modules/ETM_EEPROM_INTERNAL.h</itemPath>
     </logicalFolder>
     <logicalFolder name="LinkerScript"
                    displayName="Linker Files"
@@ -77,6 +78,7 @@
       <itemPath>../../P1395_Modules/DS3231.c</itemPath>
       <itemPath>../../P1395_Modules/ETM_ANALOG.c</itemPath>
       <itemPath>../../P1395_Modules/ETM_SCALE.s</itemPath>
+      <itemPath>../../P1395_Modules/ETM_EEPROM_INTERNAL.c</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"

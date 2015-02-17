@@ -162,9 +162,17 @@ typedef struct {
   unsigned long system_xray_on_seconds;
 
   RTC_TIME time_now;
+  unsigned long time_seconds_now;
+  
 
-  unsigned int send_pulse_sync_config;
+  //unsigned int send_pulse_sync_config;
   unsigned int drive_up_timer;
+
+  unsigned int average_output_power_watts;
+  unsigned int event_log_counter;
+  
+  unsigned int startup_counter;
+
 } A36507GlobalVars;
 
 
@@ -172,7 +180,7 @@ typedef struct {
 extern A36507GlobalVars global_data_A36507;
 
 #define _STATUS_X_RAY_DISABLED                          _STATUS_0
-
+#define _STATUS_PERSONALITY_LOADED                      _STATUS_1
 
 #define _FAULT_DRIVE_UP_TIMEOUT                         _FAULT_0
 
@@ -185,6 +193,48 @@ extern A36507GlobalVars global_data_A36507;
 #define _FAULT_GUN_DVR_NOT_OPERATE                      _FAULT_D
 #define _FAULT_PULSE_CURRENT_MON_NOT_OPERATE            _FAULT_E
 #define _FAULT_PULSE_SYNC_NOT_OPERATE                   _FAULT_F
+
+
+
+// These are computed from Filament Lookup Table worksheet
+// https://docs.google.com/spreadsheets/d/18de5OHQ0gJUx2U1b8VjYTvutx2ACGTG0XtN_QEIc9WI/
+
+#define FILAMENT_LOOK_UP_TABLE_VALUES_FOR_MG7095 0xFFF,0xFD6,0xFD6,0xFAE,0xFAE,0xF85,0xF5C,0xF33,0xF0A,0xF0A,0xEE1,0xEB8,0xE8F,0xE66,0xE3D,0xE14,0xDEB,0xDC2,0xD70,0xD47,0xD1E,0xCF5,0xCA3,0xC7A,0xC51,0xBFF,0xBD6,0xB85,0xB5C,0xB0A,0xAB8,0xA8F,0xA3D,0x9EB,0x9C2,0x970,0x91E,0x8CC,0x87A,0x828,0x7D7,0x785,0x733,0x6E1,0x68F,0x63D,0x5EB,0x599,0x51E,0x4CC,0x47A,0x3FF,0x3AE,0x35C,0x2E1,0x28F,0x214,0x199,0x147,0xCC,0x7A,0x0,0x0,0x0 
+
+#define FILAMENT_LOOK_UP_TABLE_VALUES_FOR_MG5193 0xFFF,0xFFF,0xFFF,0xFFF,0xFFF,0xFFF,0xFFF,0xFFF,0xFFF,0xFFF,0xFFF,0xFFF,0xFFF,0xFFF,0xFFF,0xF85,0xF0A,0xE8F,0xE14,0xD70,0xCF5,0xC7A,0xBFF,0xB85,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0
+
+
+#define EEPROM_PAGE_SYSTEM_CONFIG_HTR_MAG_AFC               0x000
+#define EEPROM_PAGE_SYSTEM_CONFIG_HV_LAMBDA                 0x001
+#define EEPROM_PAGE_SYSTEM_CONFIG_GUN_DRV                   0x002
+#define EEPROM_PAGE_SYSTEM_CONFIG_PULSE_SYNC_PER_1          0x003
+#define EEPROM_PAGE_SYSTEM_CONFIG_PULSE_SYNC_PER_2          0x004
+#define EEPROM_PAGE_SYSTEM_CONFIG_PULSE_SYNC_PER_3          0x005
+#define EEPROM_PAGE_SYSTEM_CONFIG_PULSE_SYNC_PER_4          0x006
+
+#define EEPROM_PAGE_ON_TIME                                 0x007
+#define EEPROM_PAGE_HEATER_TIMERS                           0x008
+// EEPROM PAGES reserved for future use                     9->F
+
+
+
+
+
+#define STATE_STARTUP                                0x10
+#define STATE_WAIT_FOR_PERSONALITY_FROM_PULSE_SYNC   0x12
+#define STATE_WAITING_FOR_INITIALIZATION             0x15
+#define STATE_WARMUP                                 0x20
+#define STATE_STANDBY                                0x30
+#define STATE_DRIVE_UP                               0x40
+#define STATE_READY                                  0x50
+#define STATE_XRAY_ON                                0x60
+
+
+#define STATE_FAULT_HOLD                             0x80
+#define STATE_FAULT_RESET                            0x90
+#define STATE_FAULT_SYSTEM                           0xA0
+
+
 
 
 #endif
