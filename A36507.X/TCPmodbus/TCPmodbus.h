@@ -11,7 +11,7 @@
 #ifndef __TCP_MODBUS_H
 #define __TCP_MODBUS_H
 
-#include "ETM_CAN.h"
+#include "P1395_CAN_MASTER.h"
 
 extern void TCPmodbus_init(void);
 

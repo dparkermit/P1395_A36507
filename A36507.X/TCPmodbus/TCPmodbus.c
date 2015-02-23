@@ -577,13 +577,13 @@ void TCPmodbus_task(void)
 ***************************************************************************/
 void InitModbusData(void)
 {
-   	eth_tx_hv_lamdba.status_data   = &etm_can_hv_lamdba_mirror.status_data;							
-   	eth_tx_hv_lamdba.debug_data    = &etm_can_hv_lamdba_mirror.debug_data;							
-   	eth_tx_hv_lamdba.can_status    = &etm_can_hv_lamdba_mirror.can_status;							
-   	eth_tx_hv_lamdba.configuration = &etm_can_hv_lamdba_mirror.configuration;						
+   	eth_tx_hv_lamdba.status_data   = &etm_can_hv_lambda_mirror.status_data;							
+   	eth_tx_hv_lamdba.debug_data    = &etm_can_hv_lambda_mirror.debug_data;							
+   	eth_tx_hv_lamdba.can_status    = &etm_can_hv_lambda_mirror.can_status;							
+   	eth_tx_hv_lamdba.configuration = &etm_can_hv_lambda_mirror.configuration;						
 																									
-   	eth_tx_hv_lamdba.custom_data   = &etm_can_hv_lamdba_mirror.hvlambda_high_energy_set_point;		
-    eth_tx_hv_lamdba.custom_data_word_count = 6; 													
+   	eth_tx_hv_lamdba.custom_data   = &etm_can_hv_lambda_mirror.ecb_high_set_point;		
+    eth_tx_hv_lamdba.custom_data_word_count = 9; 													
     eth_tx_hv_lamdba.data_identification = 1;
 
    	eth_tx_ion_pump.status_data   = &etm_can_ion_pump_mirror.status_data;
@@ -648,7 +648,7 @@ void InitModbusData(void)
    	eth_tx_ethernet_board.can_status    = &local_can_errors;
    	eth_tx_ethernet_board.configuration = &etm_can_my_configuration;
    	eth_tx_ethernet_board.custom_data   = &etm_can_ethernet_board_data.status_received_register;
-	eth_tx_ethernet_board.custom_data_word_count = 5; 
+	eth_tx_ethernet_board.custom_data_word_count = 15; 
 	eth_tx_ethernet_board.data_identification = 9;
 
  
@@ -663,15 +663,15 @@ void InitModbusData(void)
   #if 1 
 	/*
    // setup some fake data
-   etm_can_hv_lamdba_mirror.status_data.status_word_0	= 0x1111;
-   etm_can_hv_lamdba_mirror.status_data.status_word_1	= 0x3344;
-   etm_can_hv_lamdba_mirror.status_data.data_word_A	= 0x5566;
-   etm_can_hv_lamdba_mirror.status_data.data_word_B	= 0x7788;
-   etm_can_hv_lamdba_mirror.status_data.status_word_0_inhbit_mask = 0x9911;
-   etm_can_hv_lamdba_mirror.status_data.status_word_1_fault_mask = 0x1155;
+   etm_can_hv_lambda_mirror.status_data.status_word_0	= 0x1111;
+   etm_can_hv_lambda_mirror.status_data.status_word_1	= 0x3344;
+   etm_can_hv_lambda_mirror.status_data.data_word_A	= 0x5566;
+   etm_can_hv_lambda_mirror.status_data.data_word_B	= 0x7788;
+   etm_can_hv_lambda_mirror.status_data.status_word_0_inhbit_mask = 0x9911;
+   etm_can_hv_lambda_mirror.status_data.status_word_1_fault_mask = 0x1155;
    
-   etm_can_hv_lamdba_mirror.hvlambda_high_energy_set_point = 0x1122;
-   etm_can_hv_lamdba_mirror.hvlambda_readback_base_plate_temp = 0x5599;
+   etm_can_hv_lambda_mirror.hvlambda_high_energy_set_point = 0x1122;
+   etm_can_hv_lambda_mirror.hvlambda_readback_base_plate_temp = 0x5599;
 
    etm_can_ion_pump_mirror.status_data.status_word_0	= 0x2222;
    etm_can_ion_pump_mirror.status_data.status_word_1	= 0x3344;

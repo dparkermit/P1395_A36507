@@ -1,10 +1,5 @@
 #include "A36507.h"
 #include "FIRMWARE_VERSION.h"
-#include "ETM_EEPROM_INTERNAL.h"
-
-//#define INTERNAL_EEPROM_RESERVED_WORDS    1024
-//__eds__ unsigned int internal_eeprom[INTERNAL_EEPROM_RESERVED_WORDS] __attribute__ ((space(eedata)),page) = {};
-//INTERNAL_EEPROM eeprom_internal;
 
 
 const unsigned int FilamentLookUpTable[64] = {FILAMENT_LOOK_UP_TABLE_VALUES_FOR_MG5193};
@@ -44,7 +39,7 @@ _FGS(CODE_PROT_OFF);
 _FICD(PGD);
 
 
-ETMEEProm U5_FM24C64B;
+
 RTC_DS3231 U6_DS3231;
 A36507GlobalVars global_data_A36507;
 
@@ -354,7 +349,7 @@ unsigned int CheckFault(void) {
   if (_HV_LAMBDA_NOT_READY) {
     if (!_FAULT_HV_LAMBDA_NOT_OPERATE) {
       // There is a NEW Lambda fault.
-      SendToEventLog(&etm_can_hv_lamdba_mirror.status_data);
+      SendToEventLog(&etm_can_hv_lambda_mirror.status_data);
     } 
 #ifndef __IGNORE_HV_LAMBDA_MODULE
     fault = 1;
@@ -446,17 +441,16 @@ void SendToEventLog(ETMCanStatusRegister* ptr_status) {
 
 
 
-#define MAGNETRON_HEATER_WARM_UP_TIME        60   // 15 seconds
-//#define THYRATRON_WARM_UP_TIME               900   // 15 minutes
-#define THYRATRON_WARM_UP_TIME               60   // 15 seconds
-#define GUN_DRIVER_HEATER_WARM_UP_TIME       60   // 15 seconds
+#define MAGNETRON_HEATER_WARM_UP_TIME        300   // 5 minutes
+#define THYRATRON_WARM_UP_TIME               900   // 15 minutes
+#define GUN_DRIVER_HEATER_WARM_UP_TIME       300   // 5 minutes
 
 
 
 void CalculateHeaterWarmupTimers(void) {
   unsigned long difference;
   // Read the warmup timers stored in EEPROM
-  ETMEEPromReadPage(&U5_FM24C64B, EEPROM_PAGE_HEATER_TIMERS, 6, (unsigned int*)&global_data_A36507.magnetron_heater_last_warm_seconds);
+  ETMEEPromReadPage(EEPROM_PAGE_HEATER_TIMERS, 6, (unsigned int*)&global_data_A36507.magnetron_heater_last_warm_seconds);
   ReadDateAndTime(&U6_DS3231, &global_data_A36507.time_now);
   global_data_A36507.time_seconds_now = RTCDateToSeconds(&global_data_A36507.time_now);
 
@@ -488,19 +482,22 @@ void CalculateHeaterWarmupTimers(void) {
 
 
 void DoA36507(void) {
-  ETMCanDoCan();
+  ETMCanMasterDoCan();
   TCPmodbus_task();
   ExecuteEthernetCommand(1);
 
   // Check to see if cooling is present
   _SYNC_CONTROL_COOLING_FAULT = 0;
 #ifndef __IGNORE_COOLING_INTERFACE_MODULE
-  if (_COOLING_NOT_CONNECTED || _COOLING_NOT_READY) {
+  if (_COOLING_NOT_CONNECTED) {
     _SYNC_CONTROL_COOLING_FAULT = 1;
+    _FAULT_COOLING_NOT_CONNECTED = 1;
+  }
+  if (_COOLING_NOT_READY) {
+    _SYNC_CONTROL_COOLING_FAULT = 1;
+    _FAULT_COOLING_NOT_CONNECTED = 1;
   }
 #endif
-
-  etm_can_ethernet_board_data.control_state_mirror = global_data_A36507.control_state;
 
   local_debug_data.debug_0 = global_data_A36507.thyratron_warmup_counter_seconds;
   local_debug_data.debug_1 = global_data_A36507.magnetron_heater_warmup_counter_seconds;
@@ -523,6 +520,18 @@ void DoA36507(void) {
     // 10ms Timer has expired
     _T5IF = 0;
     
+    // Copy data from global variable strucutre to strucutre that gets sent to GUI
+    // DPARKER do something better here
+    etm_can_ethernet_board_data.mirror_control_state = global_data_A36507.control_state;
+    etm_can_ethernet_board_data.mirror_system_powered_seconds = global_data_A36507.system_powered_seconds;
+    etm_can_ethernet_board_data.mirror_system_hv_on_seconds = global_data_A36507.system_hv_on_seconds;
+    etm_can_ethernet_board_data.mirror_system_xray_on_seconds = global_data_A36507.system_xray_on_seconds;
+    etm_can_ethernet_board_data.mirror_time_seconds_now = global_data_A36507.time_seconds_now;
+    etm_can_ethernet_board_data.mirror_average_output_power_watts = global_data_A36507.average_output_power_watts;
+    etm_can_ethernet_board_data.mirror_thyratron_warmup_counter_seconds = global_data_A36507.thyratron_warmup_counter_seconds;
+    etm_can_ethernet_board_data.mirror_magnetron_heater_warmup_counter_seconds = global_data_A36507.magnetron_heater_warmup_counter_seconds;
+    etm_can_ethernet_board_data.mirror_gun_driver_heater_warmup_counter_seconds = global_data_A36507.gun_driver_heater_warmup_counter_seconds;
+
     if (global_data_A36507.control_state == STATE_DRIVE_UP) {
       global_data_A36507.drive_up_timer++;
     }
@@ -602,7 +611,7 @@ void DoA36507(void) {
     // Run once a second at 250 milliseconds
     if (global_data_A36507.millisecond_counter == 250) {
       // Write Warmup Done Timers to EEPROM
-      ETMEEPromWritePage(&U5_FM24C64B, EEPROM_PAGE_HEATER_TIMERS, 6, (unsigned int*)&global_data_A36507.magnetron_heater_last_warm_seconds);
+      ETMEEPromWritePage(EEPROM_PAGE_HEATER_TIMERS, 6, (unsigned int*)&global_data_A36507.magnetron_heater_last_warm_seconds);
     }
 
 
@@ -619,7 +628,7 @@ void DoA36507(void) {
 	global_data_A36507.system_hv_on_seconds++;
 	global_data_A36507.system_xray_on_seconds++;
       }
-      ETMEEPromWritePage(&U5_FM24C64B, EEPROM_PAGE_ON_TIME, 6, (unsigned int*)&global_data_A36507.system_powered_seconds);
+      ETMEEPromWritePage(EEPROM_PAGE_ON_TIME, 6, (unsigned int*)&global_data_A36507.system_powered_seconds);
     }
     
     // Update the heater current based on Output Power
@@ -673,10 +682,10 @@ void UpdateHeaterScale() {
   // Load the energy per pulse into temp32
   // Use the higher of High/Low Energy set point
   // DPARKER  - WHAT TO DO ON THE 2.5???
-  if (etm_can_hv_lamdba_mirror.hvlambda_high_energy_set_point > etm_can_hv_lamdba_mirror.hvlambda_low_energy_set_point) {
-    temp32 = CalculatePulseEnergyMilliJoules(etm_can_hv_lamdba_mirror.hvlambda_high_energy_set_point);
+  if (etm_can_hv_lambda_mirror.ecb_high_set_point > etm_can_hv_lambda_mirror.ecb_low_set_point) {
+    temp32 = CalculatePulseEnergyMilliJoules(etm_can_hv_lambda_mirror.ecb_low_set_point);
   } else {
-    temp32 = CalculatePulseEnergyMilliJoules(etm_can_hv_lamdba_mirror.hvlambda_low_energy_set_point);
+    temp32 = CalculatePulseEnergyMilliJoules(etm_can_hv_lambda_mirror.ecb_low_set_point);
   }
   
   // Multiply the Energy per Pulse times the PRF (in deci-Hz)
@@ -811,11 +820,11 @@ void InitializeA36507(void) {
     __delay32(25);
   }
 
-  ETMEEPromConfigureDevice(&U5_FM24C64B, EEPROM_I2C_ADDRESS_0, I2C_PORT, EEPROM_SIZE_8K_BYTES, FCY_CLK, ETM_I2C_400K_BAUD);  
+  ETMEEPromConfigureExternalDevice(EEPROM_SIZE_8K_BYTES, FCY_CLK, 400000, EEPROM_I2C_ADDRESS_0, 1);
   ConfigureDS3231(&U6_DS3231, I2C_PORT, RTC_DEFAULT_CONFIG, FCY_CLK, ETM_I2C_400K_BAUD);
 
   // Initialize the Can module
-  ETMCanInitialize();
+  ETMCanMasterInitialize();
   
   // Initialize TCPmodbus Module
   TCPmodbus_init();
@@ -849,12 +858,7 @@ void InitializeA36507(void) {
   _ADON = 0;
 
   // Load System powered time from EEPROM
-  ETMEEPromReadPage(&U5_FM24C64B, EEPROM_PAGE_ON_TIME, 6, (unsigned int*)&global_data_A36507.system_powered_seconds);
-
-  
-
-  //LoadDefaultSystemCalibrationToEEProm();
-  //ZeroSystemPoweredTime();
+  ETMEEPromReadPage(EEPROM_PAGE_ON_TIME, 6, (unsigned int*)&global_data_A36507.system_powered_seconds);
 
 }
 
@@ -1030,26 +1034,26 @@ void ReadSystemConfigurationFromEEProm(unsigned int personality) {
   }
   
   // Load data for HV Lambda
-  etm_can_hv_lamdba_mirror.hvlambda_low_energy_set_point = ETMEEPromReadWord(&U5_FM24C64B, (EEPROM_REGISTER_LAMBDA_LOW_ENERGY_SET_POINT + (2*personality)));
-  etm_can_hv_lamdba_mirror.hvlambda_high_energy_set_point = ETMEEPromReadWord(&U5_FM24C64B, (EEPROM_REGISTER_LAMBDA_LOW_ENERGY_SET_POINT + (2*personality)));
+  etm_can_hv_lambda_mirror.ecb_low_set_point = ETMEEPromReadWord((EEPROM_REGISTER_LAMBDA_LOW_ENERGY_SET_POINT + (2*personality)));
+  etm_can_hv_lambda_mirror.ecb_high_set_point = ETMEEPromReadWord((EEPROM_REGISTER_LAMBDA_HIGH_ENERGY_SET_POINT + (2*personality)));
 
   // Load data for AFC
-  etm_can_afc_mirror.afc_home_position = ETMEEPromReadWord(&U5_FM24C64B, (EEPROM_REGISTER_AFC_HOME_POSITION + personality));
-  etm_can_afc_mirror.afc_offset = ETMEEPromReadWord(&U5_FM24C64B, EEPROM_REGISTER_AFC_HOME_POSITION);
+  etm_can_afc_mirror.afc_home_position = ETMEEPromReadWord((EEPROM_REGISTER_AFC_HOME_POSITION + personality));
+  etm_can_afc_mirror.afc_offset = ETMEEPromReadWord(EEPROM_REGISTER_AFC_OFFSET);
   // DPARKER THIS DATA IS NOT SENT OUT BY ETM_CAN_MODULE
   
   // Load Data for Heater/Magnet Supply
-  etm_can_heater_magnet_mirror.htrmag_heater_current_set_point = ETMEEPromReadWord(&U5_FM24C64B, EEPROM_REGISTER_HTR_MAG_HEATER_CURRENT);
-  etm_can_heater_magnet_mirror.htrmag_magnet_current_set_point = ETMEEPromReadWord(&U5_FM24C64B, (EEPROM_REGISTER_HTR_MAG_MAGNET_CURRENT + personality));
+  etm_can_heater_magnet_mirror.htrmag_heater_current_set_point = ETMEEPromReadWord(EEPROM_REGISTER_HTR_MAG_HEATER_CURRENT);
+  etm_can_heater_magnet_mirror.htrmag_magnet_current_set_point = ETMEEPromReadWord((EEPROM_REGISTER_HTR_MAG_MAGNET_CURRENT + personality));
   
   // Load data for Gun Driver
-  etm_can_gun_driver_mirror.gun_heater_voltage_set_point = ETMEEPromReadWord(&U5_FM24C64B, EEPROM_REGISTER_GUN_DRV_HTR_VOLTAGE);
-  etm_can_gun_driver_mirror.gun_high_energy_pulse_top_voltage_set_point = ETMEEPromReadWord(&U5_FM24C64B, (EEPROM_REGISTER_GUN_DRV_HIGH_PULSE_TOP + (3*personality)));
-  etm_can_gun_driver_mirror.gun_low_energy_pulse_top_voltage_set_point = ETMEEPromReadWord(&U5_FM24C64B, (EEPROM_REGISTER_GUN_DRV_LOW_PULSE_TOP + (3*personality)));
-  etm_can_gun_driver_mirror.gun_cathode_voltage_set_point = ETMEEPromReadWord(&U5_FM24C64B, (EEPROM_REGISTER_GUN_DRV_CATHODE + (3*personality)));
+  etm_can_gun_driver_mirror.gun_heater_voltage_set_point = ETMEEPromReadWord(EEPROM_REGISTER_GUN_DRV_HTR_VOLTAGE);
+  etm_can_gun_driver_mirror.gun_high_energy_pulse_top_voltage_set_point = ETMEEPromReadWord((EEPROM_REGISTER_GUN_DRV_HIGH_PULSE_TOP + (3*personality)));
+  etm_can_gun_driver_mirror.gun_low_energy_pulse_top_voltage_set_point = ETMEEPromReadWord((EEPROM_REGISTER_GUN_DRV_LOW_PULSE_TOP + (3*personality)));
+  etm_can_gun_driver_mirror.gun_cathode_voltage_set_point = ETMEEPromReadWord((EEPROM_REGISTER_GUN_DRV_CATHODE + (3*personality)));
 
   // Load data for Pulse Sync
-  ETMEEPromReadPage(&U5_FM24C64B, (EEPROM_PAGE_SYSTEM_CONFIG_PULSE_SYNC_PER_1 + personality), 12, (unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_delay_high_intensity_3);
+  ETMEEPromReadPage((EEPROM_PAGE_SYSTEM_CONFIG_PULSE_SYNC_PER_1 + personality), 12, (unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_delay_high_intensity_3);
 }
 
 
@@ -1061,13 +1065,13 @@ void ZeroSystemPoweredTime(void) {
 
 
 void LoadDefaultSystemCalibrationToEEProm(void) {
-  ETMEEPromWritePage(&U5_FM24C64B, EEPROM_PAGE_SYSTEM_CONFIG_HTR_MAG_AFC, 16, (unsigned int*)&eeprom_default_values_htr_mag_afc);
-  ETMEEPromWritePage(&U5_FM24C64B, EEPROM_PAGE_SYSTEM_CONFIG_HV_LAMBDA, 16, (unsigned int*)&eeprom_default_values_hv_lambda);
-  ETMEEPromWritePage(&U5_FM24C64B, EEPROM_PAGE_SYSTEM_CONFIG_GUN_DRV, 16, (unsigned int*)&eeprom_default_values_gun_driver);
-  ETMEEPromWritePage(&U5_FM24C64B, EEPROM_PAGE_SYSTEM_CONFIG_PULSE_SYNC_PER_1, 16, (unsigned int*)&eeprom_default_values_p_sync_per_1);
-  ETMEEPromWritePage(&U5_FM24C64B, EEPROM_PAGE_SYSTEM_CONFIG_PULSE_SYNC_PER_2, 16, (unsigned int*)&eeprom_default_values_p_sync_per_1);
-  ETMEEPromWritePage(&U5_FM24C64B, EEPROM_PAGE_SYSTEM_CONFIG_PULSE_SYNC_PER_3, 16, (unsigned int*)&eeprom_default_values_p_sync_per_1);
-  ETMEEPromWritePage(&U5_FM24C64B, EEPROM_PAGE_SYSTEM_CONFIG_PULSE_SYNC_PER_4, 16, (unsigned int*)&eeprom_default_values_p_sync_per_1);
+  ETMEEPromWritePage(EEPROM_PAGE_SYSTEM_CONFIG_HTR_MAG_AFC, 16, (unsigned int*)&eeprom_default_values_htr_mag_afc);
+  ETMEEPromWritePage(EEPROM_PAGE_SYSTEM_CONFIG_HV_LAMBDA, 16, (unsigned int*)&eeprom_default_values_hv_lambda);
+  ETMEEPromWritePage(EEPROM_PAGE_SYSTEM_CONFIG_GUN_DRV, 16, (unsigned int*)&eeprom_default_values_gun_driver);
+  ETMEEPromWritePage(EEPROM_PAGE_SYSTEM_CONFIG_PULSE_SYNC_PER_1, 16, (unsigned int*)&eeprom_default_values_p_sync_per_1);
+  ETMEEPromWritePage(EEPROM_PAGE_SYSTEM_CONFIG_PULSE_SYNC_PER_2, 16, (unsigned int*)&eeprom_default_values_p_sync_per_1);
+  ETMEEPromWritePage(EEPROM_PAGE_SYSTEM_CONFIG_PULSE_SYNC_PER_3, 16, (unsigned int*)&eeprom_default_values_p_sync_per_1);
+  ETMEEPromWritePage(EEPROM_PAGE_SYSTEM_CONFIG_PULSE_SYNC_PER_4, 16, (unsigned int*)&eeprom_default_values_p_sync_per_1);
 }
 
 
@@ -1118,67 +1122,76 @@ void ExecuteEthernetCommand(unsigned int personality) {
   
   if ((next_message.index & 0x0F00) == 0x0100) {
     // this is a calibration set message, route to appropriate board
-    //SendCalibrationSetPointToSlave(next_message);
-  } else if ((next_message.index & 0x0F00) == 0x0200) {
-    // this is a calibration requestion message, route to appropriate board and await response
-    // DPARKER - HOW DOES THIS WORK?  DO WE HOLD WHILE WAITING? DO WE ONLY RESPOND IN CERTAIN STATES???
+    // DPARKER only allow when customer has not commanded high voltage on
+    SendCalibrationSetPointToSlave(next_message.index, next_message.data_1, next_message.data_0);
+  } else if ((next_message.index & 0x0F00) == 0x0900) {
+    // this is a calibration requestion message, route to appropriate board
+    // When the response is received, the data will be transfered to the GUI
+    // DPARKER only allow when customer has not commanded high voltage on
+    ReadCalibrationSetPointFromSlave(next_message.index);
   } else {
     // This message needs to be processsed by the ethernet control board
     switch (next_message.index) {
     case REGISTER_HEATER_CURRENT_AT_STANDBY:
       etm_can_heater_magnet_mirror.htrmag_heater_current_set_point = next_message.data_2;
       eeprom_register = next_message.index;
-      ETMEEPromWriteWord(&U5_FM24C64B, eeprom_register, next_message.data_2);
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
       break;
 
     case REGISTER_ELECTROMAGNET_CURRENT:
       etm_can_heater_magnet_mirror.htrmag_magnet_current_set_point = next_message.data_2;
       eeprom_register = next_message.index + personality;
-      ETMEEPromWriteWord(&U5_FM24C64B, eeprom_register, next_message.data_2);
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
       break;
 
     case REGISTER_HOME_POSITION:
       etm_can_afc_mirror.afc_home_position = next_message.data_2;
       eeprom_register = next_message.index + personality;
-      ETMEEPromWriteWord(&U5_FM24C64B, eeprom_register, next_message.data_2);
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
       break;
 
     case REGISTER_AFC_OFFSET:
       etm_can_afc_mirror.afc_offset = next_message.data_2;
       eeprom_register = next_message.index;
-      ETMEEPromWriteWord(&U5_FM24C64B, eeprom_register, next_message.data_2);
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
       break;
       
     case REGISTER_HIGH_ENERGY_SET_POINT:
+      etm_can_hv_lambda_mirror.ecb_high_set_point = next_message.data_2;
+      eeprom_register = next_message.index + 2 * personality;
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
       // DPARKER figure out how this is going to work - voltage or current programming
       break;
 
     case REGISTER_LOW_ENERGY_SET_POINT:
+      etm_can_hv_lambda_mirror.ecb_low_set_point = next_message.data_2;
+      eeprom_register = next_message.index + 2 * personality;
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
       // DPARKER figure out how this is going to work - voltage or current programming
       break;
 
     case REGISTER_GUN_DRIVER_HEATER_VOLTAGE:
       etm_can_gun_driver_mirror.gun_heater_voltage_set_point = next_message.data_2;
       eeprom_register = next_message.index;
-      ETMEEPromWriteWord(&U5_FM24C64B, eeprom_register, next_message.data_2);
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
       break;
 
     case REGISTER_GUN_DRIVER_HIGH_ENERGY_PULSE_TOP_VOLTAGE:
       etm_can_gun_driver_mirror.gun_high_energy_pulse_top_voltage_set_point = next_message.data_2;
       eeprom_register = next_message.index + personality * 3;
-      ETMEEPromWriteWord(&U5_FM24C64B, eeprom_register, next_message.data_2);
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
       break;
 
     case REGISTER_GUN_DRIVER_LOW_ENERGY_PULSE_TOP_VOLTAGE:
       etm_can_gun_driver_mirror.gun_low_energy_pulse_top_voltage_set_point = next_message.data_2;
       eeprom_register = next_message.index + personality * 3;
-      ETMEEPromWriteWord(&U5_FM24C64B, eeprom_register, next_message.data_2);
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
       break;
 
     case REGISTER_GUN_DRIVER_CATHODE_VOLTAGE:
       etm_can_gun_driver_mirror.gun_cathode_voltage_set_point = next_message.data_2;
       eeprom_register = next_message.index + personality * 3;
-      ETMEEPromWriteWord(&U5_FM24C64B, eeprom_register, next_message.data_2);
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
       break;
 
       // DPARKER ADD IN THE PULSE SYNC SETTINGS
@@ -1200,7 +1213,16 @@ void ExecuteEthernetCommand(unsigned int personality) {
       break;
 
     case REGISTER_SPECIAL_ECB_LOAD_DEFAULT_SETTINGS_TO_EEPROM_AND_REBOOT:
+      // DPARKER only allow when customer has not commanded high voltage on
+      SendSlaveLoadDefaultEEpromData(next_message.data_2);
+    break;
+
+    /*
+    case REGISTER_SPECIAL_SEND_ALL_CAL_DATA_TO_GUI:
+      // DPARKER only allow when customer has not commanded high voltage on
+      SendSlaveUploadAllCalData(next_message.data_2);
       break;
+    */
 
     case REGISTER_DEBUG_TOGGLE_RESET:
       if (_SYNC_CONTROL_RESET_ENABLE) {
@@ -1211,15 +1233,35 @@ void ExecuteEthernetCommand(unsigned int personality) {
       break;
 
     case REGISTER_DEBUG_TOGGLE_HIGH_SPEED_LOGGING:
+      if (_SYNC_CONTROL_HIGH_SPEED_LOGGING) {
+	_SYNC_CONTROL_HIGH_SPEED_LOGGING = 0;
+      } else {
+	_SYNC_CONTROL_HIGH_SPEED_LOGGING = 1;
+      }
       break;
 
     case REGISTER_DEBUG_TOGGLE_HV_ENABLE:
+      if (_SYNC_CONTROL_PULSE_SYNC_DISABLE_HV) {
+	_SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 0;
+      } else {
+	_SYNC_CONTROL_PULSE_SYNC_DISABLE_HV = 1;
+      }
       break;
 
     case REGISTER_DEBUG_TOGGLE_XRAY_ENABLE:
+      if (_SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY) {
+	_SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 0;
+      } else {
+	_SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
+      }
       break;
 
     case REGISTER_DEBUG_TOGGLE_COOLING_FAULT:
+      if (_SYNC_CONTROL_COOLING_FAULT) {
+	_SYNC_CONTROL_COOLING_FAULT = 0;
+      } else {
+	_SYNC_CONTROL_COOLING_FAULT = 1;
+      }
       break;
 
 

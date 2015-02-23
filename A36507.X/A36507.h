@@ -1,15 +1,23 @@
 #ifndef __A36507_H
 #define __A36507_H
 
-#include <p30f6014a.h>
+#include <xc.h>
 #include <libpic30.h>
 #include <adc12.h>
+
+#include <timer.h>
+#include "P1395_MODULE_CONFIG.h"
+
 #include "ETM_ANALOG.h"
 #include "DS3231.h"
-#include "ETM_CAN_PUBLIC.h"
-#include "ETM_CAN.h"
 #include "ETM_EEPROM.h"
 #include "TCPmodbus.h"
+
+//#include "ETM_CAN_PUBLIC.h"
+//#include "ETM_CAN_P1395_MASTER.h"
+#include "P1395_CAN_MASTER.h"
+
+
 
 
 
@@ -183,6 +191,8 @@ extern A36507GlobalVars global_data_A36507;
 #define _STATUS_PERSONALITY_LOADED                      _STATUS_1
 
 #define _FAULT_DRIVE_UP_TIMEOUT                         _FAULT_0
+#define _FAULT_COOLING_NOT_CONNECTED                    _FAULT_1
+#define _FAULT_COOLING_NOT_READY                        _FAULT_2
 
 #define _FAULT_GUN_HEATER_OFF                           _FAULT_7
 #define _FAULT_HV_LAMBDA_NOT_OPERATE                    _FAULT_8
