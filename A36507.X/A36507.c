@@ -245,7 +245,8 @@ void DoStateMachine(void) {
     _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY = 1;
     while (global_data_A36507.control_state == STATE_FAULT_RESET) {
       DoA36507();
-      _FAULT_DRIVE_UP_TIMEOUT = 0;
+      _FAULT_REGISTER = 0; // DPARKER IS THIS RIGHT????
+
 
       if (CheckHVOffFault() == 0) {
 	global_data_A36507.control_state = STATE_WAITING_FOR_INITIALIZATION;
@@ -498,7 +499,7 @@ void DoA36507(void) {
     _FAULT_COOLING_NOT_CONNECTED = 1;
   }
 #endif
-
+  
   local_debug_data.debug_0 = global_data_A36507.thyratron_warmup_counter_seconds;
   local_debug_data.debug_1 = global_data_A36507.magnetron_heater_warmup_counter_seconds;
   local_debug_data.debug_2 = global_data_A36507.gun_driver_heater_warmup_counter_seconds;
@@ -1092,6 +1093,9 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
 #define REGISTER_SPECIAL_ECB_LOAD_DEFAULT_SETTINGS_TO_EEPROM_AND_REBOOT                    0xE080
 #define REGISTER_SPECIAL_ECB_REST_ARC_AND_PULSE_COUNT                                      0xE081
 #define REGISTER_SPECIAL_ECB_RESET_SECONDS_POWERED_HV_ON_XRAY_ON                           0xE082
+
+#define REGISTER_SPECIAL_ECB_RESET_SLAVE                                                   0xE083
+
 #define REGISTER_DEBUG_TOGGLE_RESET                                                        0xEF00
 #define REGISTER_DEBUG_TOGGLE_HIGH_SPEED_LOGGING                                           0xEF01
 #define REGISTER_DEBUG_TOGGLE_HV_ENABLE                                                    0xEF02
@@ -1215,7 +1219,12 @@ void ExecuteEthernetCommand(unsigned int personality) {
     case REGISTER_SPECIAL_ECB_LOAD_DEFAULT_SETTINGS_TO_EEPROM_AND_REBOOT:
       // DPARKER only allow when customer has not commanded high voltage on
       SendSlaveLoadDefaultEEpromData(next_message.data_2);
-    break;
+      break;
+    
+    case REGISTER_SPECIAL_ECB_RESET_SLAVE:
+      SendSlaveReset(next_message.data_2);
+      break;
+      
 
     /*
     case REGISTER_SPECIAL_SEND_ALL_CAL_DATA_TO_GUI:
