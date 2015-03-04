@@ -500,21 +500,19 @@ void DoA36507(void) {
   }
 #endif
   
-  local_debug_data.debug_0 = global_data_A36507.thyratron_warmup_counter_seconds;
-  local_debug_data.debug_1 = global_data_A36507.magnetron_heater_warmup_counter_seconds;
-  local_debug_data.debug_2 = global_data_A36507.gun_driver_heater_warmup_counter_seconds;
-  local_debug_data.debug_3 = global_data_A36507.control_state;
-
-  local_debug_data.debug_4 = global_data_A36507.average_output_power_watts;
-  local_debug_data.debug_5 = etm_can_heater_magnet_mirror.htrmag_heater_current_set_point_scaled;
-
-  local_debug_data.debug_8 = global_data_A36507.analog_input_5v_mon.reading_scaled_and_calibrated;
-  local_debug_data.debug_9 = global_data_A36507.analog_input_3v3_mon.reading_scaled_and_calibrated;
-  local_debug_data.debug_C = global_data_A36507.event_log_counter;
-  local_debug_data.debug_D = global_data_A36507.drive_up_timer;
-  local_debug_data.debug_E = global_data_A36507.control_state;
-  local_debug_data.debug_F = *(unsigned int*)&etm_can_sync_message.sync_0_control_word;
-
+  local_debug_data.debug_0 = global_data_A36507.control_state;
+  
+  local_debug_data.debug_4 = global_data_A36507.no_connect_count_ion_pump_board;
+  local_debug_data.debug_5 = global_data_A36507.no_connect_count_magnetron_current_board;
+  local_debug_data.debug_6 = global_data_A36507.no_connect_count_pulse_sync_board;
+  local_debug_data.debug_7 = global_data_A36507.no_connect_count_hv_lambda_board;
+  local_debug_data.debug_8 = global_data_A36507.no_connect_count_afc_board;
+  local_debug_data.debug_9 = global_data_A36507.no_connect_count_cooling_interface_board;
+  local_debug_data.debug_A = global_data_A36507.no_connect_count_heater_magnet_board;
+  local_debug_data.debug_B = global_data_A36507.no_connect_count_gun_driver_board;
+  
+  etm_can_ethernet_board_data.mirror_sync_0_control_word = *(unsigned int*)&etm_can_sync_message.sync_0_control_word;
+  
 
 
   if (_T5IF) {
@@ -1101,6 +1099,7 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
 #define REGISTER_DEBUG_TOGGLE_HV_ENABLE                                                    0xEF02
 #define REGISTER_DEBUG_TOGGLE_XRAY_ENABLE                                                  0xEF03
 #define REGISTER_DEBUG_TOGGLE_COOLING_FAULT                                                0xEF04
+#define REGISTER_DEBUG_TOGGLE_RESET_DEBUG                                                  0xEF05
 
 
 
@@ -1273,6 +1272,13 @@ void ExecuteEthernetCommand(unsigned int personality) {
       }
       break;
 
+    case REGISTER_DEBUG_TOGGLE_RESET_DEBUG:
+      if (_SYNC_CONTROL_CLEAR_DEBUG_DATA) {
+	_SYNC_CONTROL_CLEAR_DEBUG_DATA = 0;
+      } else {
+	_SYNC_CONTROL_CLEAR_DEBUG_DATA = 1;
+      }
+      break;
 
     }
   }

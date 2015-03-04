@@ -181,6 +181,16 @@ typedef struct {
   
   unsigned int startup_counter;
 
+
+  unsigned int no_connect_count_ion_pump_board;
+  unsigned int no_connect_count_magnetron_current_board;
+  unsigned int no_connect_count_pulse_sync_board;
+  unsigned int no_connect_count_hv_lambda_board;
+  unsigned int no_connect_count_afc_board;
+  unsigned int no_connect_count_cooling_interface_board;
+  unsigned int no_connect_count_heater_magnet_board;
+  unsigned int no_connect_count_gun_driver_board;
+  
 } A36507GlobalVars;
 
 

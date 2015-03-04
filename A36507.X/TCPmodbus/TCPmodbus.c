@@ -615,7 +615,7 @@ void InitModbusData(void)
    	eth_tx_heater_magnet.can_status    = &etm_can_heater_magnet_mirror.can_status;
    	eth_tx_heater_magnet.configuration = &etm_can_heater_magnet_mirror.configuration;
    	eth_tx_heater_magnet.custom_data   = &etm_can_heater_magnet_mirror.htrmag_magnet_current_set_point;
-    eth_tx_heater_magnet.custom_data_word_count = 10; 
+    eth_tx_heater_magnet.custom_data_word_count = 12; 
     eth_tx_heater_magnet.data_identification = 5;
 
     eth_tx_gun_driver.status_data   = &etm_can_gun_driver_mirror.status_data;
