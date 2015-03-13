@@ -32,7 +32,7 @@ void DoA36507(void);
 _FOSC(ECIO_PLL16 & CSW_FSCM_OFF); 
 //_FWDT(WDT_ON & WDTPSA_64 & WDTPSB_8);  // 1 Second watchdog timer 
 _FWDT(WDT_ON & WDTPSA_512 & WDTPSB_8);  // 8 Second watchdog timer 
-_FBORPOR(PWRT_64 & BORV_45 & PBOR_OFF & MCLR_EN);
+_FBORPOR(PWRT_64 & NONE & PBOR_OFF & MCLR_DIS);
 _FBS(WR_PROTECT_BOOT_OFF & NO_BOOT_CODE & NO_BOOT_EEPROM & NO_BOOT_RAM);
 _FSS(WR_PROT_SEC_OFF & NO_SEC_CODE & NO_SEC_EEPROM & NO_SEC_RAM);
 _FGS(CODE_PROT_OFF);
@@ -1085,6 +1085,12 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
 #define REGISTER_GUN_DRIVER_HIGH_ENERGY_PULSE_TOP_VOLTAGE                                  0x0021
 #define REGISTER_GUN_DRIVER_LOW_ENERGY_PULSE_TOP_VOLTAGE                                   0x0022
 #define REGISTER_GUN_DRIVER_CATHODE_VOLTAGE                                                0x0023
+
+#define REGISTER_CMD_AFC_SELECT_AFC_MODE                                                   0x5081
+#define REGISTER_CMD_AFC_SELECT_MANUAL_MODE                                                0x5082
+#define REGISTER_CMD_AFC_MANUAL_TARGET_POSITION                                            0x5083
+#define REGISTER_CMD_AFC_MANUAL_MOVE                                                       0x5084
+
 #define REGISTER_CMD_COOLANT_INTERFACE_ALLOW_25_MORE_SF6_PULSES                            0x6082
 #define REGISTER_CMD_COOLANT_INTERFACE_ALLOW_SF6_PULSES_WHEN_PRESSURE_BELOW_LIMIT          0x6083
 #define REGISTER_CMD_COOLANT_INTERFACE_SET_SF6_PULSES_IN_BOTTLE                            0x6084
@@ -1107,6 +1113,10 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
 void ExecuteEthernetCommand(unsigned int personality) {
   ETMEthernetMessageFromGUI next_message;
   unsigned int eeprom_register;
+
+  ETMCanMessage can_message;
+  unsigned int board_id;
+
 
   // DPARKER what happens if this is called before personality has been read??? 
   // Easy to solve in the state machine, just don't call until state when the personality is known
@@ -1195,6 +1205,26 @@ void ExecuteEthernetCommand(unsigned int personality) {
       etm_can_gun_driver_mirror.gun_cathode_voltage_set_point = next_message.data_2;
       eeprom_register = next_message.index + personality * 3;
       ETMEEPromWriteWord(eeprom_register, next_message.data_2);
+      break;
+
+
+    case REGISTER_CMD_AFC_MANUAL_TARGET_POSITION:
+      can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_AFC_CONTROL_BOARD << 3));
+      can_message.word3 = ETM_CAN_REGISTER_AFC_CMD_SELECT_MANUAL_MODE;
+      can_message.word2 = 0;
+      can_message.word1 = 0;
+      can_message.word0 = 0;
+      ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+      MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()  
+
+      can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_AFC_CONTROL_BOARD << 3));
+      can_message.word3 = ETM_CAN_REGISTER_AFC_CMD_SET_MANUAL_TARGET_POSITION;
+      can_message.word2 = 0;
+      can_message.word1 = 0;
+      can_message.word0 = next_message.data_2;
+      ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+      MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()  
+
       break;
 
       // DPARKER ADD IN THE PULSE SYNC SETTINGS
