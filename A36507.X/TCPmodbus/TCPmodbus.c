@@ -599,7 +599,7 @@ void InitModbusData(void)
    	eth_tx_afc.can_status    = &etm_can_afc_mirror.can_status;
    	eth_tx_afc.configuration = &etm_can_afc_mirror.configuration;
    	eth_tx_afc.custom_data = &etm_can_afc_mirror.afc_home_position;
-    eth_tx_afc.custom_data_word_count = 5; 
+    eth_tx_afc.custom_data_word_count = 11; 
     eth_tx_afc.data_identification = 3;
  		   
     eth_tx_cooling.status_data   = &etm_can_cooling_mirror.status_data;

@@ -1011,6 +1011,7 @@ const unsigned int eeprom_default_values_p_sync_per_1[16]= {((DEFAULT_P_SYNC_HIG
 #define EEPROM_REGISTER_HTR_MAG_MAGNET_CURRENT                      0x0001
 #define EEPROM_REGISTER_AFC_HOME_POSITION                           0x0005
 #define EEPROM_REGISTER_AFC_OFFSET                                  0x0009
+#define EEPROM_REGISTER_AFC_AFT_CONTROL_VOLTAGE                     0x000A
 
 #define EEPROM_REGISTER_LAMBDA_HIGH_ENERGY_SET_POINT                0x0010
 #define EEPROM_REGISTER_LAMBDA_LOW_ENERGY_SET_POINT                 0x0011
@@ -1039,7 +1040,7 @@ void ReadSystemConfigurationFromEEProm(unsigned int personality) {
   // Load data for AFC
   etm_can_afc_mirror.afc_home_position = ETMEEPromReadWord((EEPROM_REGISTER_AFC_HOME_POSITION + personality));
   etm_can_afc_mirror.afc_offset = ETMEEPromReadWord(EEPROM_REGISTER_AFC_OFFSET);
-  // DPARKER THIS DATA IS NOT SENT OUT BY ETM_CAN_MODULE
+  etm_can_afc_mirror.aft_control_voltage = ETMEEPromReadWord(EEPROM_REGISTER_AFC_AFT_CONTROL_VOLTAGE);
   
   // Load Data for Heater/Magnet Supply
   etm_can_heater_magnet_mirror.htrmag_heater_current_set_point = ETMEEPromReadWord(EEPROM_REGISTER_HTR_MAG_HEATER_CURRENT);
@@ -1079,6 +1080,7 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
 #define REGISTER_ELECTROMAGNET_CURRENT                                                     0x0001
 #define REGISTER_HOME_POSITION                                                             0x0005
 #define REGISTER_AFC_OFFSET                                                                0x0009
+#define REGISTER_AFC_AFT_CONTROL_VOLTAGE                                                   0x000A
 #define REGISTER_HIGH_ENERGY_SET_POINT                                                     0x0010
 #define REGISTER_LOW_ENERGY_SET_POINT                                                      0x0011
 #define REGISTER_GUN_DRIVER_HEATER_VOLTAGE                                                 0x0020
@@ -1115,7 +1117,6 @@ void ExecuteEthernetCommand(unsigned int personality) {
   unsigned int eeprom_register;
 
   ETMCanMessage can_message;
-  unsigned int board_id;
 
 
   // DPARKER what happens if this is called before personality has been read??? 
@@ -1169,6 +1170,11 @@ void ExecuteEthernetCommand(unsigned int personality) {
       ETMEEPromWriteWord(eeprom_register, next_message.data_2);
       break;
       
+    case REGISTER_AFC_AFT_CONTROL_VOLTAGE:
+      etm_can_afc_mirror.aft_control_voltage = next_message.data_2;
+      eeprom_register = next_message.index;
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
+
     case REGISTER_HIGH_ENERGY_SET_POINT:
       etm_can_hv_lambda_mirror.ecb_high_set_point = next_message.data_2;
       eeprom_register = next_message.index + 2 * personality;
