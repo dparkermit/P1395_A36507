@@ -86,7 +86,6 @@ ETMEthernetTXDataStructure   eth_tx_ethernet_board;
 
 ETMEthernetMessageFromGUI    eth_message_from_GUI[ ETH_GUI_MESSAGE_BUFFER_SIZE ];
 ETMEthernetCalToGUI          eth_cal_to_GUI[ ETH_CAL_TO_GUI_BUFFER_SIZE ];
-ETMEthernetPulseToGUI        eth_pulse_to_GUI[ ETH_PULSE_TO_GUI_BUFFER_SIZE ];
 
 
 
@@ -108,8 +107,7 @@ static BYTE         eth_message_from_GUI_get_index;
 static BYTE         eth_cal_to_GUI_put_index;
 static BYTE         eth_cal_to_GUI_get_index;
 
-static BYTE         eth_pulse_to_GUI_put_index;
-static BYTE         eth_pulse_to_GUI_get_index;
+static BYTE         send_high_speed_data_buffer;  /* bit 0 high for buffer A, bit 1 high for buffer B */
 
 #ifdef TEST_MODBUS
 unsigned char event_data[ETH_EVENT_SIZE];
@@ -117,7 +115,6 @@ unsigned char event_data[ETH_EVENT_SIZE];
 
 #define QUEUE_MESSAGE_FROM_GUI  1
 #define QUEUE_CAL_TO_GUI        2
-#define QUEUE_PULSE_TO_GUI      3
 /****************************************************************************
   Function:
     static BYTE queue_buffer_room(q_index)
@@ -146,11 +143,6 @@ static BYTE queue_buffer_room(BYTE q_index)
     	put_index = eth_cal_to_GUI_put_index;
         get_index = eth_cal_to_GUI_get_index;
         size = ETH_CAL_TO_GUI_BUFFER_SIZE;
-    	break;
-	case QUEUE_PULSE_TO_GUI:
-    	put_index =  eth_pulse_to_GUI_put_index;
-        get_index =  eth_pulse_to_GUI_get_index;
-        size = ETH_PULSE_TO_GUI_BUFFER_SIZE;
     	break;
 	default:
     	room = 0xff; // not defined
@@ -194,11 +186,6 @@ static BYTE queue_is_empty(BYTE q_index)
     	put_index = eth_cal_to_GUI_put_index;
         get_index = eth_cal_to_GUI_get_index;
         size = ETH_CAL_TO_GUI_BUFFER_SIZE;
-    	break;
-	case QUEUE_PULSE_TO_GUI:
-    	put_index = eth_pulse_to_GUI_put_index;
-        get_index = eth_pulse_to_GUI_get_index;
-        size = ETH_PULSE_TO_GUI_BUFFER_SIZE;
     	break;
 	default:
     	is_empty = 0xff; // not defined
@@ -302,32 +289,31 @@ unsigned int SendCalibrationData(unsigned int index, unsigned int scale, unsigne
 }
 /****************************************************************************
   Function:
-    unsigned int SendPulseData(unsigned char *ptr)
+		unsigned int SendPulseData(unsigned char buffer_a)
 
   Input:
-    pointer to data	(128 bytes)
+        0: buffer_b, non-0: buffer_a
     
   Description:
   Remarks:
-    None
+	// This will change a flag to indicate pulse data ready
+	// It will return 0x0000 if previous data was sent,  or 0xFFFF if it was not (buffer full)
 ***************************************************************************/
-unsigned int SendPulseData(unsigned char *ptr)
+unsigned int SendPulseData(unsigned char is_buffer_a)
 {
-    unsigned char i;
     
-    if (queue_buffer_room(QUEUE_PULSE_TO_GUI) > 0)
+    if (is_buffer_a && (send_high_speed_data_buffer & 0x01) == 0)
     {
-    	for (i = 0; i < ETH_PULSE_TO_GUI_DATA_SIZE; i++)
-    		eth_pulse_to_GUI[eth_pulse_to_GUI_put_index].data[i] = *(ptr + i);
-
-        eth_pulse_to_GUI_put_index++;
-        eth_pulse_to_GUI_put_index = eth_pulse_to_GUI_put_index & (ETH_PULSE_TO_GUI_BUFFER_SIZE - 1);
-
-        return (0);
+		send_high_speed_data_buffer |= 0x01;
+    }
+    else if (is_buffer_a == 0 && (send_high_speed_data_buffer & 0x02) == 0)
+    {
+		send_high_speed_data_buffer |= 0x02;
     }
     else
-        return (0xffff);
-        
+    	return (0xffff);
+
+    return (0);
 }
 /****************************************************************************
   Function:
@@ -658,8 +644,6 @@ void InitModbusData(void)
  	eth_cal_to_GUI_put_index = 0;
  	eth_cal_to_GUI_get_index = 0;
  
- 	eth_pulse_to_GUI_put_index = 0;	   
- 	eth_pulse_to_GUI_get_index = 0;
   #if 1 
 	/*
    // setup some fake data
@@ -720,7 +704,7 @@ void BuildModbusOutput_write_header(unsigned int total_bytes)
 	    data_buffer[8] = 0;   // ref # hi
 	    data_buffer[9] = 0;	  // ref # lo
 
-	    data_buffer[10] = 0;  // data length in words hi, always 0, assume data length < 256
+	    data_buffer[10] = (total_bytes >> 9) & 0xff;  // data length in words hi, always 0, assume data length < 256
 	    data_buffer[11] = total_bytes >> 1;     // data length in words lo
 	    data_buffer[12] = total_bytes & 0xff;   // data length in bytes
 
@@ -800,7 +784,8 @@ WORD BuildModbusOutput_write_commands(unsigned char index)
 {
 	  WORD x; 
 	  WORD total_bytes = 0;  // default: no cmd out 
-
+      static unsigned pulse_index = 0;  // index for eash tracking
+	  unsigned char *ptr;
     
       switch (index) // otherwise index is wrong, don't need send any cmd out
       {
@@ -816,7 +801,7 @@ WORD BuildModbusOutput_write_commands(unsigned char index)
         
         data_buffer[13 + 30] = queue_buffer_room(QUEUE_MESSAGE_FROM_GUI);    
         data_buffer[13 + 31] = queue_buffer_room(QUEUE_CAL_TO_GUI);    
-        data_buffer[13 + 32] = queue_buffer_room(QUEUE_PULSE_TO_GUI);  
+        data_buffer[13 + 32] = 0x11;  
         data_buffer[13 + 33] = 0x66;
         #else
       	for (x = 0; x < total_bytes; x++)
@@ -852,20 +837,34 @@ WORD BuildModbusOutput_write_commands(unsigned char index)
        break;
        
       case MODBUS_WR_PULSE_LOG:
-      	if (queue_is_empty(QUEUE_PULSE_TO_GUI) == 0) 
+      
+      	if (send_high_speed_data_buffer) 
         {
-	      	total_bytes = ETH_PULSE_TO_GUI_DATA_SIZE;
+	      	total_bytes = HIGH_SPEED_DATA_BUFFER_SIZE * sizeof(ETMCanHighSpeedData) + 2;
 	        
-        	BuildModbusOutput_write_header(total_bytes);   
+        	BuildModbusOutput_write_header(total_bytes); 
+            
+            data_buffer[13] = (pulse_index >> 8) & 0xff;
+            data_buffer[14] = pulse_index & 0xff;
+            pulse_index++;  // overflows at 65535
+            
+            if (send_high_speed_data_buffer & 0x01) 
+            {
+            	ptr = (unsigned char *)&high_speed_data_buffer_a[0];
+                send_high_speed_data_buffer &= 0xfe;
+            } 
+            else  
+            {
+            	ptr = (unsigned char *)&high_speed_data_buffer_b[0];
+                send_high_speed_data_buffer = 0;
+            } 
 
         	// data starts at offset 13
+            total_bytes -= 2;
             for (x = 0; x < total_bytes; x++)
-               data_buffer[13 + x] = eth_pulse_to_GUI[eth_pulse_to_GUI_get_index].data[x];
+               data_buffer[15 + x] = *ptr++;
                
-            eth_pulse_to_GUI_get_index++;
-            eth_pulse_to_GUI_get_index = eth_pulse_to_GUI_get_index & (ETH_PULSE_TO_GUI_BUFFER_SIZE - 1);
-           
-	      	total_bytes += 13;
+	      	total_bytes += 15;
             
          }   
        break;
@@ -993,7 +992,7 @@ WORD BuildModbusOutput(void)
       }
       else {  // time to send queue commands
       	  modbus_send_index = 0;
-          if (queue_is_empty(QUEUE_PULSE_TO_GUI) == 0)
+          if (send_high_speed_data_buffer)
           	 modbus_send_index = MODBUS_WR_PULSE_LOG;
           else if (modbus_command_request) 
           {
@@ -1190,5 +1189,7 @@ void GenericTCPClient(void)
       break;
     }
 }
+
+
 
 

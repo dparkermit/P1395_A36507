@@ -18,14 +18,14 @@ extern void TCPmodbus_init(void);
 extern void TCPmodbus_task(void);
 
 extern unsigned int SendCalibrationData(unsigned int index, unsigned int scale, unsigned int offset);
-extern unsigned int SendPulseData(unsigned char *ptr);
+extern unsigned int SendPulseData(unsigned char is_buffer_a);
 
 
 #define TEST_MODBUS	   1
 
 
-#define MAX_TX_SIZE    255
-#define MAX_DATA_SIZE  200	// leave some room for modbus header
+#define MAX_TX_SIZE    800	 // ethernet header for TCP/modbus is 60 bytes
+#define MAX_DATA_SIZE  640	// leave some room for modbus header
 
 #define ETH_EVENT_SIZE  100
 
@@ -103,16 +103,6 @@ typedef struct {
 extern ETMEthernetCalToGUI eth_cal_to_GUI[ ETH_CAL_TO_GUI_BUFFER_SIZE ];
 
 
-#define ETH_PULSE_TO_GUI_DATA_SIZE  128
-
-typedef struct {
-  unsigned char data[ETH_PULSE_TO_GUI_DATA_SIZE];                  // command index
-} ETMEthernetPulseToGUI;
-
-
-
-#define ETH_PULSE_TO_GUI_BUFFER_SIZE  16
-extern ETMEthernetPulseToGUI eth_pulse_to_GUI[ ETH_PULSE_TO_GUI_BUFFER_SIZE ];
 
 #ifdef TEST_MODBUS
 extern unsigned char event_data[ETH_EVENT_SIZE];

@@ -91,7 +91,7 @@
 #endif
 
 
-#define MAC_TX_BUFFER_SIZE			(1500ul)
+#define MAC_TX_BUFFER_SIZE			(1500ul)  // used in UDP.c only
 
 // A generic structure representing the Ethernet header starting all Ethernet
 // frames
