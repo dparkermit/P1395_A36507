@@ -2,6 +2,8 @@
 #include "FIRMWARE_VERSION.h"
 
 
+unsigned int dan_temp_counter = 0;
+
 const unsigned int FilamentLookUpTable[64] = {FILAMENT_LOOK_UP_TABLE_VALUES_FOR_MG5193};
 
 void ZeroSystemPoweredTime(void);
@@ -32,7 +34,7 @@ void DoA36507(void);
 _FOSC(ECIO_PLL16 & CSW_FSCM_OFF); 
 //_FWDT(WDT_ON & WDTPSA_64 & WDTPSB_8);  // 1 Second watchdog timer 
 _FWDT(WDT_ON & WDTPSA_512 & WDTPSB_8);  // 8 Second watchdog timer 
-_FBORPOR(PWRT_64 & NONE & PBOR_OFF & MCLR_DIS);
+_FBORPOR(PWRT_64 & NONE & PBOR_OFF & MCLR_EN);
 _FBS(WR_PROTECT_BOOT_OFF & NO_BOOT_CODE & NO_BOOT_EEPROM & NO_BOOT_RAM);
 _FSS(WR_PROT_SEC_OFF & NO_SEC_CODE & NO_SEC_EEPROM & NO_SEC_RAM);
 _FGS(CODE_PROT_OFF);
@@ -481,11 +483,25 @@ void CalculateHeaterWarmupTimers(void) {
 
 }
 
+#define SEND_BUFFER_A            1
+#define SEND_BUFFER_B            0
+
 
 void DoA36507(void) {
   ETMCanMasterDoCan();
   TCPmodbus_task();
-  ExecuteEthernetCommand(1);
+  ExecuteEthernetCommand(1);  // DPARKER This is using personality 1, should read from pulse sync
+
+  if ((global_data_A36507.buffer_a_ready_to_send) & (!global_data_A36507.buffer_a_sent)) {
+    SendPulseData(SEND_BUFFER_A);
+    global_data_A36507.buffer_a_sent = 1;
+  }
+
+  if ((global_data_A36507.buffer_b_ready_to_send) & (!global_data_A36507.buffer_b_sent)) {
+    SendPulseData(SEND_BUFFER_B);
+    global_data_A36507.buffer_b_sent = 1;
+  }
+
 
   // Check to see if cooling is present
   _SYNC_CONTROL_COOLING_FAULT = 0;
@@ -546,6 +562,53 @@ void DoA36507(void) {
     global_data_A36507.millisecond_counter += 10;
     if (global_data_A36507.millisecond_counter >= 1000) {
       global_data_A36507.millisecond_counter = 0;
+      
+    
+      /*
+      // DPARKER TESTING LOG FUNCTION
+      high_speed_data_buffer_a[0].pulse_count = dan_temp_counter++;
+      high_speed_data_buffer_a[1].pulse_count = dan_temp_counter++;
+      high_speed_data_buffer_a[2].pulse_count = dan_temp_counter++;
+      high_speed_data_buffer_a[3].pulse_count = dan_temp_counter++;
+      high_speed_data_buffer_a[4].pulse_count = dan_temp_counter++;
+      high_speed_data_buffer_a[5].pulse_count = dan_temp_counter++;
+      high_speed_data_buffer_a[6].pulse_count = dan_temp_counter++;
+      high_speed_data_buffer_a[7].pulse_count = dan_temp_counter++;
+      high_speed_data_buffer_a[8].pulse_count = dan_temp_counter++;
+      high_speed_data_buffer_a[9].pulse_count = dan_temp_counter++;
+      high_speed_data_buffer_a[10].pulse_count = dan_temp_counter++;
+      high_speed_data_buffer_a[11].pulse_count = dan_temp_counter++;
+      high_speed_data_buffer_a[12].pulse_count = dan_temp_counter++;
+      high_speed_data_buffer_a[13].pulse_count = dan_temp_counter++;
+      high_speed_data_buffer_a[14].pulse_count = dan_temp_counter++;
+      high_speed_data_buffer_a[15].pulse_count = dan_temp_counter++;
+
+
+      high_speed_data_buffer_a[0].x_ray_on_seconds_lsw = global_data_A36507.time_seconds_now;
+      high_speed_data_buffer_a[0].x_ray_on_milliseconds = global_data_A36507.millisecond_counter;
+      high_speed_data_buffer_a[0].x_ray_on_milliseconds += TMR5>>10;  // Need to divide by 1250 to get milliseconds
+      high_speed_data_buffer_a[0].hvlambda_readback_high_energy_lambda_program_voltage = 0;
+      high_speed_data_buffer_a[0].hvlambda_readback_low_energy_lambda_program_voltage = 1;
+      high_speed_data_buffer_a[0].hvlambda_readback_peak_lambda_voltage = 2;
+      high_speed_data_buffer_a[0].afc_readback_current_position = 3;
+      high_speed_data_buffer_a[0].afc_readback_target_position = 4;
+      high_speed_data_buffer_a[0].afc_readback_a_input = 5;
+      high_speed_data_buffer_a[0].afc_readback_b_input = 6;
+      high_speed_data_buffer_a[0].afc_readback_filtered_error_reading = 7;
+      high_speed_data_buffer_a[0].ionpump_readback_high_energy_target_current_reading = 8;
+      high_speed_data_buffer_a[0].ionpump_readback_low_energy_target_current_reading = 9;
+      high_speed_data_buffer_a[0].magmon_readback_magnetron_high_energy_current = 10;
+      high_speed_data_buffer_a[0].magmon_readback_magnetron_low_energy_current = 11;
+      high_speed_data_buffer_a[0].psync_readback_trigger_width_and_filtered_trigger_width = 12;
+      high_speed_data_buffer_a[0].psync_readback_high_energy_grid_width_and_delay = 13;
+      high_speed_data_buffer_a[0].psync_readback_low_energy_grid_width_and_delay = 14;
+      
+
+
+      
+      SendPulseData(1);
+      */
+    
     }
 
     // Run once a second at 0 milliseconds

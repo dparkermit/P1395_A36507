@@ -861,9 +861,11 @@ WORD BuildModbusOutput_write_commands(unsigned char index)
 
         	// data starts at offset 13
             total_bytes -= 2;
-            for (x = 0; x < total_bytes; x++)
-               data_buffer[15 + x] = *ptr++;
-               
+            for (x = 0; x < total_bytes; x++) {
+	      data_buffer[15 + x] = *ptr;
+	      *ptr = 0;
+	      ptr++;
+	    }
 	      	total_bytes += 15;
             
          }   

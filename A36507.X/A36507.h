@@ -190,6 +190,11 @@ typedef struct {
   unsigned int no_connect_count_cooling_interface_board;
   unsigned int no_connect_count_heater_magnet_board;
   unsigned int no_connect_count_gun_driver_board;
+
+  unsigned int buffer_a_ready_to_send;
+  unsigned int buffer_b_ready_to_send;
+  unsigned int buffer_a_sent;
+  unsigned int buffer_b_sent;
   
 } A36507GlobalVars;
 
