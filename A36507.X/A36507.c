@@ -534,6 +534,7 @@ void DoA36507(void) {
   if (_T5IF) {
     // 10ms Timer has expired
     _T5IF = 0;
+    global_data_A36507.millisecond_counter += 10;
     
     // Copy data from global variable strucutre to strucutre that gets sent to GUI
     // DPARKER do something better here
@@ -559,7 +560,6 @@ void DoA36507(void) {
 
 
     // Run at 1 second interval
-    global_data_A36507.millisecond_counter += 10;
     if (global_data_A36507.millisecond_counter >= 1000) {
       global_data_A36507.millisecond_counter = 0;
       
@@ -1160,7 +1160,7 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
 #define REGISTER_CMD_COOLANT_INTERFACE_ALLOW_SF6_PULSES_WHEN_PRESSURE_BELOW_LIMIT          0x6083
 #define REGISTER_CMD_COOLANT_INTERFACE_SET_SF6_PULSES_IN_BOTTLE                            0x6084
 #define REGISTER_SPECIAL_ECB_LOAD_DEFAULT_SETTINGS_TO_EEPROM_AND_REBOOT                    0xE080
-#define REGISTER_SPECIAL_ECB_REST_ARC_AND_PULSE_COUNT                                      0xE081
+#define REGISTER_SPECIAL_ECB_RESET_ARC_AND_PULSE_COUNT                                     0xE081
 #define REGISTER_SPECIAL_ECB_RESET_SECONDS_POWERED_HV_ON_XRAY_ON                           0xE082
 
 #define REGISTER_SPECIAL_ECB_RESET_SLAVE                                                   0xE083
@@ -1171,6 +1171,8 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
 #define REGISTER_DEBUG_TOGGLE_XRAY_ENABLE                                                  0xEF03
 #define REGISTER_DEBUG_TOGGLE_COOLING_FAULT                                                0xEF04
 #define REGISTER_DEBUG_TOGGLE_RESET_DEBUG                                                  0xEF05
+#define REGISTER_DEBUG_ENABLE_HIGH_SPEED_LOGGING                                           0xEF06
+#define REGISTER_DEBUG_DISABLE_HIGH_SPEED_LOGGING                                          0xEF07
 
 
 
@@ -1307,7 +1309,7 @@ void ExecuteEthernetCommand(unsigned int personality) {
     case REGISTER_CMD_COOLANT_INTERFACE_SET_SF6_PULSES_IN_BOTTLE:
       break;
 
-    case REGISTER_SPECIAL_ECB_REST_ARC_AND_PULSE_COUNT:
+    case REGISTER_SPECIAL_ECB_RESET_ARC_AND_PULSE_COUNT:
       break;
 
     case REGISTER_SPECIAL_ECB_RESET_SECONDS_POWERED_HV_ON_XRAY_ON:
@@ -1339,6 +1341,14 @@ void ExecuteEthernetCommand(unsigned int personality) {
       }
       break;
 
+    case REGISTER_DEBUG_ENABLE_HIGH_SPEED_LOGGING:
+      _SYNC_CONTROL_HIGH_SPEED_LOGGING = 1;
+      break;
+
+    case REGISTER_DEBUG_DISABLE_HIGH_SPEED_LOGGING:
+      _SYNC_CONTROL_HIGH_SPEED_LOGGING = 0;
+      break;
+      
     case REGISTER_DEBUG_TOGGLE_HIGH_SPEED_LOGGING:
       if (_SYNC_CONTROL_HIGH_SPEED_LOGGING) {
 	_SYNC_CONTROL_HIGH_SPEED_LOGGING = 0;
