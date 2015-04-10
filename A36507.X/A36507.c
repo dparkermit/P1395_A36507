@@ -526,7 +526,9 @@ void DoA36507(void) {
   local_debug_data.debug_9 = global_data_A36507.no_connect_count_cooling_interface_board;
   local_debug_data.debug_A = global_data_A36507.no_connect_count_heater_magnet_board;
   local_debug_data.debug_B = global_data_A36507.no_connect_count_gun_driver_board;
-  
+  local_debug_data.debug_C = etm_can_next_pulse_level;
+  local_debug_data.debug_D = etm_can_next_pulse_count;
+
   etm_can_ethernet_board_data.mirror_sync_0_control_word = *(unsigned int*)&etm_can_sync_message.sync_0_control_word;
   
 
@@ -1151,6 +1153,22 @@ void LoadDefaultSystemCalibrationToEEProm(void) {
 #define REGISTER_GUN_DRIVER_LOW_ENERGY_PULSE_TOP_VOLTAGE                                   0x0022
 #define REGISTER_GUN_DRIVER_CATHODE_VOLTAGE                                                0x0023
 
+#define REGISTER_PULSE_SYNC_GRID_PULSE_DELAY_HIGH_ENERGY_A_B                               0x0030
+#define REGISTER_PULSE_SYNC_GRID_PULSE_DELAY_HIGH_ENERGY_C_D                               0x0031
+#define REGISTER_PULSE_SYNC_RF_TRIGGER_AND_THYRATRON_PULSE_DELAY_HIGH_ENERGY               0x0032
+
+#define REGISTER_PULSE_SYNC_GRID_PULSE_WIDTH_HIGH_ENERGY_A_B                               0x0033
+#define REGISTER_PULSE_SYNC_GRID_PULSE_WIDTH_HIGH_ENERGY_C_D                               0x0034
+#define REGISTER_PULSE_SYNC_AFC_AND_SPARE_PULSE_DELAY_HIGH_ENERGY                          0x0035
+
+#define REGISTER_PULSE_SYNC_GRID_PULSE_DELAY_LOW_ENERGY_A_B                                0x0036
+#define REGISTER_PULSE_SYNC_GRID_PULSE_DELAY_LOW_ENERGY_C_D                                0x0037
+#define REGISTER_PULSE_SYNC_RF_TRIGGER_AND_THYRATRON_PULSE_DELAY_LOW_ENERGY                0x0038
+
+#define REGISTER_PULSE_SYNC_GRID_PULSE_WIDTH_LOW_ENERGY_A_B                                0x0039
+#define REGISTER_PULSE_SYNC_GRID_PULSE_WIDTH_LOW_ENERGY_C_D                                0x003A
+#define REGISTER_PULSE_SYNC_AFC_AND_SPARE_PULSE_DELAY_LOW_ENERGY                           0x003B
+
 #define REGISTER_CMD_AFC_SELECT_AFC_MODE                                                   0x5081
 #define REGISTER_CMD_AFC_SELECT_MANUAL_MODE                                                0x5082
 #define REGISTER_CMD_AFC_MANUAL_TARGET_POSITION                                            0x5083
@@ -1276,7 +1294,84 @@ void ExecuteEthernetCommand(unsigned int personality) {
       etm_can_gun_driver_mirror.gun_cathode_voltage_set_point = next_message.data_2;
       eeprom_register = next_message.index + personality * 3;
       ETMEEPromWriteWord(eeprom_register, next_message.data_2);
+      
+
+
+
+
+    case REGISTER_PULSE_SYNC_GRID_PULSE_DELAY_HIGH_ENERGY_A_B:
+      *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_delay_high_intensity_3 = next_message.data_2;
+      eeprom_register = next_message.index + personality * 0x10;
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
       break;
+
+    case REGISTER_PULSE_SYNC_GRID_PULSE_DELAY_HIGH_ENERGY_C_D:
+      *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_delay_high_intensity_1 = next_message.data_2;
+      eeprom_register = next_message.index + personality * 0x10;
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
+      break;
+
+    case REGISTER_PULSE_SYNC_RF_TRIGGER_AND_THYRATRON_PULSE_DELAY_HIGH_ENERGY:
+      *(unsigned int*)&etm_can_pulse_sync_mirror.psync_pfn_delay_high = next_message.data_2;
+      eeprom_register = next_message.index + personality * 0x10;
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
+      break;
+
+    case REGISTER_PULSE_SYNC_GRID_PULSE_WIDTH_HIGH_ENERGY_A_B:
+      *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_width_high_intensity_3 = next_message.data_2;
+      eeprom_register = next_message.index + personality * 0x10;
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
+      break;
+
+    case REGISTER_PULSE_SYNC_GRID_PULSE_WIDTH_HIGH_ENERGY_C_D:
+      *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_width_high_intensity_1 = next_message.data_2;
+      eeprom_register = next_message.index + personality * 0x10;
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
+      break;
+
+    case REGISTER_PULSE_SYNC_AFC_AND_SPARE_PULSE_DELAY_HIGH_ENERGY:
+      *(unsigned int*)&etm_can_pulse_sync_mirror.psync_afc_delay_high = next_message.data_2;
+      eeprom_register = next_message.index + personality * 0x10;
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
+      break;
+
+    case REGISTER_PULSE_SYNC_GRID_PULSE_DELAY_LOW_ENERGY_A_B:
+      *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_delay_low_intensity_3 = next_message.data_2;
+      eeprom_register = next_message.index + personality * 0x10;
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
+      break;
+
+    case REGISTER_PULSE_SYNC_GRID_PULSE_DELAY_LOW_ENERGY_C_D:
+      *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_delay_low_intensity_1 = next_message.data_2;
+      eeprom_register = next_message.index + personality * 0x10;
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
+      break;
+
+    case REGISTER_PULSE_SYNC_RF_TRIGGER_AND_THYRATRON_PULSE_DELAY_LOW_ENERGY:
+      *(unsigned int*)&etm_can_pulse_sync_mirror.psync_pfn_delay_low = next_message.data_2;
+      eeprom_register = next_message.index + personality * 0x10;
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
+      break;
+
+    case REGISTER_PULSE_SYNC_GRID_PULSE_WIDTH_LOW_ENERGY_A_B:
+      *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_width_low_intensity_3 = next_message.data_2;
+      eeprom_register = next_message.index + personality * 0x10;
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
+      break;
+
+    case REGISTER_PULSE_SYNC_GRID_PULSE_WIDTH_LOW_ENERGY_C_D:
+      *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_width_low_intensity_1 = next_message.data_2;
+      eeprom_register = next_message.index + personality * 0x10;
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
+      break;
+
+    case REGISTER_PULSE_SYNC_AFC_AND_SPARE_PULSE_DELAY_LOW_ENERGY:
+      *(unsigned int*)&etm_can_pulse_sync_mirror.psync_afc_delay_low = next_message.data_2;
+      eeprom_register = next_message.index + personality * 0x10;
+      ETMEEPromWriteWord(eeprom_register, next_message.data_2);
+      break;
+
+      
 
 
     case REGISTER_CMD_AFC_MANUAL_TARGET_POSITION:
