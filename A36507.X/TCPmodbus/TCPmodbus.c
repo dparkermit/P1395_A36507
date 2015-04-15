@@ -620,21 +620,21 @@ void InitModbusData(void)
     eth_tx_magnetron_current.custom_data_word_count = 12; 
     eth_tx_magnetron_current.data_identification = 7;
  		   
-   	eth_tx_pulse_sync.status_data   = &etm_can_pulse_sync_mirror.status_data;
-   	eth_tx_pulse_sync.debug_data    = &etm_can_pulse_sync_mirror.debug_data;
-   	eth_tx_pulse_sync.can_status    = &etm_can_pulse_sync_mirror.can_status;
-   	eth_tx_pulse_sync.configuration = &etm_can_pulse_sync_mirror.configuration;
-   	eth_tx_pulse_sync.custom_data   = (unsigned int *)&etm_can_pulse_sync_mirror.psync_grid_delay_high_intensity_3;
+    eth_tx_pulse_sync.status_data   = &etm_can_pulse_sync_mirror.status_data;
+    eth_tx_pulse_sync.debug_data    = &etm_can_pulse_sync_mirror.debug_data;
+    eth_tx_pulse_sync.can_status    = &etm_can_pulse_sync_mirror.can_status;
+    eth_tx_pulse_sync.configuration = &etm_can_pulse_sync_mirror.configuration;
+    eth_tx_pulse_sync.custom_data   = (unsigned int *)&etm_can_pulse_sync_mirror.psync_grid_delay_high_intensity_3;
     eth_tx_pulse_sync.custom_data_word_count = 13;
     eth_tx_pulse_sync.data_identification = 8;
  		   
 	
-	eth_tx_ethernet_board.status_data   = &etm_can_status_register;
-   	eth_tx_ethernet_board.debug_data    = &local_debug_data;
-   	eth_tx_ethernet_board.can_status    = &local_can_errors;
-   	eth_tx_ethernet_board.configuration = &etm_can_my_configuration;
-   	eth_tx_ethernet_board.custom_data   = &etm_can_ethernet_board_data.status_received_register;
-	eth_tx_ethernet_board.custom_data_word_count = 15; 
+    eth_tx_ethernet_board.status_data   = &etm_can_ethernet_board_data.status_data;
+    eth_tx_ethernet_board.debug_data    = &etm_can_ethernet_board_data.debug_data;
+    eth_tx_ethernet_board.can_status    = &etm_can_ethernet_board_data.can_status; 
+    eth_tx_ethernet_board.configuration = &etm_can_ethernet_board_data.configuration;
+      eth_tx_ethernet_board.custom_data   = &etm_can_ethernet_board_data.status_received_register;
+    eth_tx_ethernet_board.custom_data_word_count = 15; 
 	eth_tx_ethernet_board.data_identification = 9;
 
  

@@ -1,6 +1,11 @@
 #include "A36507.h"
 #include "FIRMWARE_VERSION.h"
 
+#define etm_can_status_register   etm_can_ethernet_board_data.status_data
+#define local_debug_data          etm_can_ethernet_board_data.debug_data
+#define local_can_errors          etm_can_ethernet_board_data.can_status
+#define etm_can_my_configuration  etm_can_ethernet_board_data.configuration
+
 
 unsigned int dan_temp_counter = 0;
 
