@@ -561,6 +561,7 @@ void TCPmodbus_task(void)
   Remarks:
     None
 ***************************************************************************/
+#define MAX_CUSTOM_DATA_LENGTH  32
 void InitModbusData(void)
 {
    	eth_tx_hv_lamdba.status_data   = &etm_can_hv_lambda_mirror.status_data;							
@@ -569,7 +570,7 @@ void InitModbusData(void)
    	eth_tx_hv_lamdba.configuration = &etm_can_hv_lambda_mirror.configuration;						
 																									
    	eth_tx_hv_lamdba.custom_data   = &etm_can_hv_lambda_mirror.ecb_high_set_point;		
-    eth_tx_hv_lamdba.custom_data_word_count = 9; 													
+    eth_tx_hv_lamdba.custom_data_word_count = MAX_CUSTOM_DATA_LENGTH; 													
     eth_tx_hv_lamdba.data_identification = 1;
 
    	eth_tx_ion_pump.status_data   = &etm_can_ion_pump_mirror.status_data;
@@ -577,7 +578,7 @@ void InitModbusData(void)
    	eth_tx_ion_pump.can_status    = &etm_can_ion_pump_mirror.can_status;
    	eth_tx_ion_pump.configuration = &etm_can_ion_pump_mirror.configuration;
    	eth_tx_ion_pump.custom_data = &etm_can_ion_pump_mirror.ionpump_readback_ion_pump_volage_monitor;
-    eth_tx_ion_pump.custom_data_word_count = 4; 
+    eth_tx_ion_pump.custom_data_word_count = MAX_CUSTOM_DATA_LENGTH; 
     eth_tx_ion_pump.data_identification = 2;
  
    	eth_tx_afc.status_data   = &etm_can_afc_mirror.status_data;
@@ -585,7 +586,7 @@ void InitModbusData(void)
    	eth_tx_afc.can_status    = &etm_can_afc_mirror.can_status;
    	eth_tx_afc.configuration = &etm_can_afc_mirror.configuration;
    	eth_tx_afc.custom_data = &etm_can_afc_mirror.afc_home_position;
-    eth_tx_afc.custom_data_word_count = 11; 
+    eth_tx_afc.custom_data_word_count = MAX_CUSTOM_DATA_LENGTH; 
     eth_tx_afc.data_identification = 3;
  		   
     eth_tx_cooling.status_data   = &etm_can_cooling_mirror.status_data;
@@ -593,7 +594,7 @@ void InitModbusData(void)
    	eth_tx_cooling.can_status    = &etm_can_cooling_mirror.can_status;
    	eth_tx_cooling.configuration = &etm_can_cooling_mirror.configuration;
    	eth_tx_cooling.custom_data = &etm_can_cooling_mirror.cool_readback_hvps_coolant_flow;
-    eth_tx_cooling.custom_data_word_count = 12; 
+    eth_tx_cooling.custom_data_word_count = MAX_CUSTOM_DATA_LENGTH; 
     eth_tx_cooling.data_identification = 4;
 
    	eth_tx_heater_magnet.status_data   = &etm_can_heater_magnet_mirror.status_data;
@@ -601,7 +602,7 @@ void InitModbusData(void)
    	eth_tx_heater_magnet.can_status    = &etm_can_heater_magnet_mirror.can_status;
    	eth_tx_heater_magnet.configuration = &etm_can_heater_magnet_mirror.configuration;
    	eth_tx_heater_magnet.custom_data   = &etm_can_heater_magnet_mirror.htrmag_magnet_current_set_point;
-    eth_tx_heater_magnet.custom_data_word_count = 12; 
+    eth_tx_heater_magnet.custom_data_word_count = MAX_CUSTOM_DATA_LENGTH; 
     eth_tx_heater_magnet.data_identification = 5;
 
     eth_tx_gun_driver.status_data   = &etm_can_gun_driver_mirror.status_data;
@@ -609,7 +610,7 @@ void InitModbusData(void)
    	eth_tx_gun_driver.can_status    = &etm_can_gun_driver_mirror.can_status;
    	eth_tx_gun_driver.configuration = &etm_can_gun_driver_mirror.configuration;
    	eth_tx_gun_driver.custom_data   = &etm_can_gun_driver_mirror.gun_high_energy_pulse_top_voltage_set_point;
-    eth_tx_gun_driver.custom_data_word_count = 20; 
+    eth_tx_gun_driver.custom_data_word_count = MAX_CUSTOM_DATA_LENGTH; 
     eth_tx_gun_driver.data_identification = 6;
     	   
     eth_tx_magnetron_current.status_data   = &etm_can_magnetron_current_mirror.status_data;
@@ -617,7 +618,7 @@ void InitModbusData(void)
    	eth_tx_magnetron_current.can_status    = &etm_can_magnetron_current_mirror.can_status;
    	eth_tx_magnetron_current.configuration = &etm_can_magnetron_current_mirror.configuration;
    	eth_tx_magnetron_current.custom_data   = &etm_can_magnetron_current_mirror.magmon_readback_spare;
-    eth_tx_magnetron_current.custom_data_word_count = 12; 
+    eth_tx_magnetron_current.custom_data_word_count = MAX_CUSTOM_DATA_LENGTH; 
     eth_tx_magnetron_current.data_identification = 7;
  		   
     eth_tx_pulse_sync.status_data   = &etm_can_pulse_sync_mirror.status_data;
@@ -625,7 +626,7 @@ void InitModbusData(void)
     eth_tx_pulse_sync.can_status    = &etm_can_pulse_sync_mirror.can_status;
     eth_tx_pulse_sync.configuration = &etm_can_pulse_sync_mirror.configuration;
     eth_tx_pulse_sync.custom_data   = (unsigned int *)&etm_can_pulse_sync_mirror.psync_grid_delay_high_intensity_3;
-    eth_tx_pulse_sync.custom_data_word_count = 13;
+    eth_tx_pulse_sync.custom_data_word_count = MAX_CUSTOM_DATA_LENGTH;
     eth_tx_pulse_sync.data_identification = 8;
  		   
 	
@@ -633,8 +634,8 @@ void InitModbusData(void)
     eth_tx_ethernet_board.debug_data    = &etm_can_ethernet_board_data.debug_data;
     eth_tx_ethernet_board.can_status    = &etm_can_ethernet_board_data.can_status; 
     eth_tx_ethernet_board.configuration = &etm_can_ethernet_board_data.configuration;
-      eth_tx_ethernet_board.custom_data   = &etm_can_ethernet_board_data.status_received_register;
-    eth_tx_ethernet_board.custom_data_word_count = 15; 
+    eth_tx_ethernet_board.custom_data   = &etm_can_ethernet_board_data.status_received_register;
+    eth_tx_ethernet_board.custom_data_word_count = MAX_CUSTOM_DATA_LENGTH; 
 	eth_tx_ethernet_board.data_identification = 9;
 
  
