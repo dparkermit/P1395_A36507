@@ -74,15 +74,6 @@ static unsigned short wOriginalAppConfigChecksum;    // Checksum of the ROM defa
 void GenericTCPClient(void);
 void InitModbusData(void);
 
-ETMEthernetTXDataStructure   eth_tx_hv_lamdba;
-ETMEthernetTXDataStructure   eth_tx_ion_pump;
-ETMEthernetTXDataStructure   eth_tx_afc;
-ETMEthernetTXDataStructure   eth_tx_cooling;
-ETMEthernetTXDataStructure   eth_tx_heater_magnet;
-ETMEthernetTXDataStructure   eth_tx_gun_driver;
-ETMEthernetTXDataStructure   eth_tx_magnetron_current;
-ETMEthernetTXDataStructure   eth_tx_pulse_sync;
-ETMEthernetTXDataStructure   eth_tx_ethernet_board;
 
 ETMEthernetMessageFromGUI    eth_message_from_GUI[ ETH_GUI_MESSAGE_BUFFER_SIZE ];
 ETMEthernetCalToGUI          eth_cal_to_GUI[ ETH_CAL_TO_GUI_BUFFER_SIZE ];
@@ -561,83 +552,8 @@ void TCPmodbus_task(void)
   Remarks:
     None
 ***************************************************************************/
-#define MAX_CUSTOM_DATA_LENGTH  32
 void InitModbusData(void)
 {
-   	eth_tx_hv_lamdba.status_data   = &etm_can_hv_lambda_mirror.status_data;							
-   	eth_tx_hv_lamdba.debug_data    = &etm_can_hv_lambda_mirror.debug_data;							
-   	eth_tx_hv_lamdba.can_status    = &etm_can_hv_lambda_mirror.can_status;							
-   	eth_tx_hv_lamdba.configuration = &etm_can_hv_lambda_mirror.configuration;						
-																									
-   	eth_tx_hv_lamdba.custom_data   = &etm_can_hv_lambda_mirror.ecb_high_set_point;		
-    eth_tx_hv_lamdba.custom_data_word_count = MAX_CUSTOM_DATA_LENGTH; 													
-    eth_tx_hv_lamdba.data_identification = 1;
-
-   	eth_tx_ion_pump.status_data   = &etm_can_ion_pump_mirror.status_data;
-   	eth_tx_ion_pump.debug_data    = &etm_can_ion_pump_mirror.debug_data;
-   	eth_tx_ion_pump.can_status    = &etm_can_ion_pump_mirror.can_status;
-   	eth_tx_ion_pump.configuration = &etm_can_ion_pump_mirror.configuration;
-   	eth_tx_ion_pump.custom_data = &etm_can_ion_pump_mirror.ionpump_readback_ion_pump_volage_monitor;
-    eth_tx_ion_pump.custom_data_word_count = MAX_CUSTOM_DATA_LENGTH; 
-    eth_tx_ion_pump.data_identification = 2;
- 
-   	eth_tx_afc.status_data   = &etm_can_afc_mirror.status_data;
-   	eth_tx_afc.debug_data    = &etm_can_afc_mirror.debug_data;
-   	eth_tx_afc.can_status    = &etm_can_afc_mirror.can_status;
-   	eth_tx_afc.configuration = &etm_can_afc_mirror.configuration;
-   	eth_tx_afc.custom_data = &etm_can_afc_mirror.afc_home_position;
-    eth_tx_afc.custom_data_word_count = MAX_CUSTOM_DATA_LENGTH; 
-    eth_tx_afc.data_identification = 3;
- 		   
-    eth_tx_cooling.status_data   = &etm_can_cooling_mirror.status_data;
-   	eth_tx_cooling.debug_data    = &etm_can_cooling_mirror.debug_data;
-   	eth_tx_cooling.can_status    = &etm_can_cooling_mirror.can_status;
-   	eth_tx_cooling.configuration = &etm_can_cooling_mirror.configuration;
-   	eth_tx_cooling.custom_data = &etm_can_cooling_mirror.cool_readback_hvps_coolant_flow;
-    eth_tx_cooling.custom_data_word_count = MAX_CUSTOM_DATA_LENGTH; 
-    eth_tx_cooling.data_identification = 4;
-
-   	eth_tx_heater_magnet.status_data   = &etm_can_heater_magnet_mirror.status_data;
-   	eth_tx_heater_magnet.debug_data    = &etm_can_heater_magnet_mirror.debug_data;
-   	eth_tx_heater_magnet.can_status    = &etm_can_heater_magnet_mirror.can_status;
-   	eth_tx_heater_magnet.configuration = &etm_can_heater_magnet_mirror.configuration;
-   	eth_tx_heater_magnet.custom_data   = &etm_can_heater_magnet_mirror.htrmag_magnet_current_set_point;
-    eth_tx_heater_magnet.custom_data_word_count = MAX_CUSTOM_DATA_LENGTH; 
-    eth_tx_heater_magnet.data_identification = 5;
-
-    eth_tx_gun_driver.status_data   = &etm_can_gun_driver_mirror.status_data;
-   	eth_tx_gun_driver.debug_data    = &etm_can_gun_driver_mirror.debug_data;
-   	eth_tx_gun_driver.can_status    = &etm_can_gun_driver_mirror.can_status;
-   	eth_tx_gun_driver.configuration = &etm_can_gun_driver_mirror.configuration;
-   	eth_tx_gun_driver.custom_data   = &etm_can_gun_driver_mirror.gun_high_energy_pulse_top_voltage_set_point;
-    eth_tx_gun_driver.custom_data_word_count = MAX_CUSTOM_DATA_LENGTH; 
-    eth_tx_gun_driver.data_identification = 6;
-    	   
-    eth_tx_magnetron_current.status_data   = &etm_can_magnetron_current_mirror.status_data;
-   	eth_tx_magnetron_current.debug_data    = &etm_can_magnetron_current_mirror.debug_data;
-   	eth_tx_magnetron_current.can_status    = &etm_can_magnetron_current_mirror.can_status;
-   	eth_tx_magnetron_current.configuration = &etm_can_magnetron_current_mirror.configuration;
-   	eth_tx_magnetron_current.custom_data   = &etm_can_magnetron_current_mirror.magmon_readback_spare;
-    eth_tx_magnetron_current.custom_data_word_count = MAX_CUSTOM_DATA_LENGTH; 
-    eth_tx_magnetron_current.data_identification = 7;
- 		   
-    eth_tx_pulse_sync.status_data   = &etm_can_pulse_sync_mirror.status_data;
-    eth_tx_pulse_sync.debug_data    = &etm_can_pulse_sync_mirror.debug_data;
-    eth_tx_pulse_sync.can_status    = &etm_can_pulse_sync_mirror.can_status;
-    eth_tx_pulse_sync.configuration = &etm_can_pulse_sync_mirror.configuration;
-    eth_tx_pulse_sync.custom_data   = (unsigned int *)&etm_can_pulse_sync_mirror.psync_grid_delay_high_intensity_3;
-    eth_tx_pulse_sync.custom_data_word_count = MAX_CUSTOM_DATA_LENGTH;
-    eth_tx_pulse_sync.data_identification = 8;
- 		   
-	
-    eth_tx_ethernet_board.status_data   = &etm_can_ethernet_board_data.status_data;
-    eth_tx_ethernet_board.debug_data    = &etm_can_ethernet_board_data.debug_data;
-    eth_tx_ethernet_board.can_status    = &etm_can_ethernet_board_data.can_status; 
-    eth_tx_ethernet_board.configuration = &etm_can_ethernet_board_data.configuration;
-    eth_tx_ethernet_board.custom_data   = &etm_can_ethernet_board_data.status_received_register;
-    eth_tx_ethernet_board.custom_data_word_count = MAX_CUSTOM_DATA_LENGTH; 
-	eth_tx_ethernet_board.data_identification = 9;
-
  
  	eth_message_from_GUI_put_index = 0;
  	eth_message_from_GUI_get_index = 0;
@@ -718,56 +634,23 @@ void BuildModbusOutput_write_header(unsigned int total_bytes)
     Build modbus command, return 0 if we don't want to send anything
  
 ***************************************************************************/
-WORD BuildModbusOutput_write_boards(ETMEthernetTXDataStructure* eth_tx_ptr)
+WORD BuildModbusOutput_write_boards(unsigned char *tx_ptr)
 {
 	  WORD i; 
 	  WORD total_bytes = 0;  // default: no cmd out 
-//      BYTE offset;   
-      unsigned char* byte_ptr;
     
-      if (eth_tx_ptr) // otherwise index is wrong, don't need send any cmd out
+      if (tx_ptr) // otherwise index is wrong, don't need send any cmd out
       {
-        total_bytes = 108 + eth_tx_ptr->custom_data_word_count * 2; // bytes after length byte
+        total_bytes = 108 + MAX_CUSTOM_DATA_LENGTH * 2; // bytes after length byte
         BuildModbusOutput_write_header(total_bytes);   
 
         // data starts at offset 13
-        byte_ptr = (unsigned char *)eth_tx_ptr->status_data;
-	    for (i = 0; i < sizeof(ETMCanStatusRegister); i++, byte_ptr++)
+	    for (i = 0; i < total_bytes; i++, tx_ptr++)
         {
-        	data_buffer[i + 13] = *byte_ptr;
+        	data_buffer[i + 13] = *tx_ptr;
         }
         total_bytes = i + 13;
-        	
-        byte_ptr = (unsigned char *)eth_tx_ptr->debug_data;
-	    for (i = 0; i < sizeof(ETMCanSystemDebugData); i++, byte_ptr++)
-        {
-        	data_buffer[i + total_bytes] = *byte_ptr;
-        }	
-	    total_bytes += i;
-
-        byte_ptr = (unsigned char *)eth_tx_ptr->can_status;
-	    for (i = 0; i < sizeof(ETMCanCanStatus); i++, byte_ptr++)
-        {
-        	data_buffer[i + total_bytes] = *byte_ptr;
-        }	
-	    total_bytes += i;
-
-        byte_ptr = (unsigned char *)eth_tx_ptr->configuration;
-	    for (i = 0; i < sizeof(ETMCanAgileConfig); i++, byte_ptr++)
-        {
-        	data_buffer[i + total_bytes] = *byte_ptr;
-        }	
-	    total_bytes += i;        
-        
-        byte_ptr = (unsigned char *)eth_tx_ptr->custom_data;
-	    for (i = 0; i < (eth_tx_ptr->custom_data_word_count * 2); i++, byte_ptr++)
-        {
-        	data_buffer[i + total_bytes] = *byte_ptr;
-        }	
-	    total_bytes += i;
-       
-                 
-	     
+        		     
        }
        
        return (total_bytes);
@@ -925,7 +808,7 @@ WORD BuildModbusOutput(void)
 {
   	static DWORD	Timer_write = 0;
     WORD total_bytes = 0;  // default: no cmd out
-    ETMEthernetTXDataStructure* eth_tx_ptr = 0;
+    unsigned char *tx_ptr = 0;
     
     
 	  if((TickGet()-Timer_write) >= TICK_100MS) 
@@ -944,38 +827,38 @@ WORD BuildModbusOutput(void)
 		          switch (modbus_send_index)
 		          {
 				  case MODBUS_WR_HVLAMBDA:
-		          	eth_tx_ptr = &eth_tx_hv_lamdba;
+		          	tx_ptr = (unsigned char *)&etm_can_hv_lambda_mirror;
 		          	break;
 				  case MODBUS_WR_ION_PUMP:
-		          	eth_tx_ptr = &eth_tx_ion_pump;
+		          	tx_ptr = (unsigned char *)&etm_can_ion_pump_mirror;
 		          	break;
 				  case MODBUS_WR_AFC:
-		          	eth_tx_ptr = &eth_tx_afc;
+		          	tx_ptr = (unsigned char *)&etm_can_afc_mirror;
 		          	break;
 				  case MODBUS_WR_COOLING:
-		          	eth_tx_ptr = &eth_tx_cooling;
+		          	tx_ptr = (unsigned char *)&etm_can_cooling_mirror;
 		          	break;
 				  case MODBUS_WR_HTR_MAGNET:
-		          	eth_tx_ptr = &eth_tx_heater_magnet;
+		          	tx_ptr = (unsigned char *)&etm_can_heater_magnet_mirror;
 		          	break;
 				  case MODBUS_WR_GUN_DRIVER:
-		          	eth_tx_ptr = &eth_tx_gun_driver;
+		          	tx_ptr = (unsigned char *)&etm_can_gun_driver_mirror;
 		          	break;
 				  case MODBUS_WR_MAGNETRON_CURRENT:
-		          	eth_tx_ptr = &eth_tx_magnetron_current;
+		          	tx_ptr = (unsigned char *)&etm_can_magnetron_current_mirror;
 		          	break;
 				  case MODBUS_WR_PULSE_SYNC:
-		          	eth_tx_ptr = &eth_tx_pulse_sync;
+		          	tx_ptr = (unsigned char *)&etm_can_pulse_sync_mirror;
 		          	break;
 				  case MODBUS_WR_ETHERNET:
-		         	eth_tx_ptr = &eth_tx_ethernet_board;
+		         	tx_ptr = (unsigned char *)&etm_can_ethernet_board_data;
 		          	break;
 				  default: // move to the next for now, ignore some boards
 		          	break;
 		          } 
-		      	  if (eth_tx_ptr) // otherwise index is wrong, don't need send any cmd out
+		      	  if (tx_ptr) // otherwise index is wrong, don't need send any cmd out
 		          {
-					 total_bytes = BuildModbusOutput_write_boards(eth_tx_ptr);
+                                total_bytes = BuildModbusOutput_write_boards(tx_ptr);
 		          }
 	      }      
 	      else

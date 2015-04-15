@@ -21,7 +21,7 @@ extern unsigned int SendCalibrationData(unsigned int index, unsigned int scale, 
 extern unsigned int SendPulseData(unsigned char is_buffer_a);
 
 
-#define TEST_MODBUS	   1
+//#define TEST_MODBUS	   1
 
 
 #define MAX_TX_SIZE    800	 // ethernet header for TCP/modbus is 60 bytes
@@ -52,32 +52,10 @@ enum
 };
 
 
+#define MAX_CUSTOM_DATA_LENGTH  32
+
 
 // STANDARD LOGGING DATA
-
-typedef struct {
-  ETMCanStatusRegister*  status_data;                  // This is 12 bytes of data
-  ETMCanSystemDebugData* debug_data;                   // This is 48 bytes of data
-  ETMCanCanStatus*       can_status;                   // This is 32 bytes of data
-  ETMCanAgileConfig*     configuration;                // This is 16 bytes of data
-
-  unsigned int*          custom_data;                  // This can be zero -> N bytes of Data
-  unsigned char          custom_data_word_count;
-
-  unsigned char          data_identification;          // This is a unique identifier for each data set
-} ETMEthernetTXDataStructure;
-
-
-// PUBLIC Variables
-extern ETMEthernetTXDataStructure   eth_tx_hv_lamdba;
-extern ETMEthernetTXDataStructure   eth_tx_ion_pump;
-extern ETMEthernetTXDataStructure   eth_tx_afc;
-extern ETMEthernetTXDataStructure   eth_tx_cooling;
-extern ETMEthernetTXDataStructure   eth_tx_heater_magnet;
-extern ETMEthernetTXDataStructure   eth_tx_gun_driver;
-extern ETMEthernetTXDataStructure   eth_tx_magnetron_current;
-extern ETMEthernetTXDataStructure   eth_tx_pulse_sync;
-extern ETMEthernetTXDataStructure   eth_tx_ethernet_board;
 
 
 typedef struct {
