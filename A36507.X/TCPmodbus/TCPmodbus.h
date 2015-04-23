@@ -82,9 +82,6 @@ extern ETMEthernetCalToGUI eth_cal_to_GUI[ ETH_CAL_TO_GUI_BUFFER_SIZE ];
 
 
 
-#ifdef TEST_MODBUS
-extern unsigned char event_data[ETH_EVENT_SIZE];
-#endif
 
 extern ETMEthernetMessageFromGUI GetNextMessage(void);
 /*

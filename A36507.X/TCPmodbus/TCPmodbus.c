@@ -63,7 +63,8 @@
 #include "TCPIPStack/TCPIPStack/TCPIP.h"
 
 #include <p30F6014a.h>
-#include "TCPmodbus.h"
+//#include "TCPmodbus.h"
+#include "A36507.h"
 
 // Declare AppConfig structure and some other supporting stack variables
 APP_CONFIG AppConfig;
@@ -100,9 +101,6 @@ static BYTE         eth_cal_to_GUI_get_index;
 
 static BYTE         send_high_speed_data_buffer;  /* bit 0 high for buffer A, bit 1 high for buffer B */
 
-#ifdef TEST_MODBUS
-unsigned char event_data[ETH_EVENT_SIZE];
-#endif
 
 #define QUEUE_MESSAGE_FROM_GUI  1
 #define QUEUE_CAL_TO_GUI        2
@@ -666,7 +664,7 @@ WORD BuildModbusOutput_write_boards(unsigned char *tx_ptr)
 ***************************************************************************/
 WORD BuildModbusOutput_write_commands(unsigned char index)
 {
-	  WORD x; 
+	  WORD x, i; 
 	  WORD total_bytes = 0;  // default: no cmd out 
       static unsigned pulse_index = 0;  // index for eash tracking
 	  unsigned char *ptr;
@@ -674,24 +672,42 @@ WORD BuildModbusOutput_write_commands(unsigned char index)
       switch (index) // otherwise index is wrong, don't need send any cmd out
       {
       case MODBUS_WR_EVENTS: 
-      	total_bytes = ETH_EVENT_SIZE;
+      	// check if there are new events
+        if (event_array_gui_pointer == global_data_A36507.event_log_counter) break;  /* no new events */
+
+    #if EVENT_ENTRIES == 256      
+      	total_bytes = ((global_data_A36507.event_log_counter - event_array_gui_pointer) & 0xff) * sizeof(TYPE_EVENT);
+    #else
+      	total_bytes = ((global_data_A36507.event_log_counter - event_array_gui_pointer) & 0x7f) * sizeof(TYPE_EVENT);
+    #endif
         
         BuildModbusOutput_write_header(total_bytes);   
 
         // data starts at offset 13
-        #ifdef TEST_MODBUS
-      	for (x = 0; x < total_bytes; x++)
-        	data_buffer[x + 13] = event_data[x];
+        for (x = event_array_gui_pointer, i = 0; x != global_data_A36507.event_log_counter; i++)
+        {
+            
+            if (i >= 64) break;  // max transfer 64 entries at one time
+            
+			data_buffer[i * sizeof(TYPE_EVENT) + 13] = (event_array[x].event_number >> 8) & 0xff;
+			data_buffer[i * sizeof(TYPE_EVENT) + 14] = event_array[x].event_number & 0xff;
+			data_buffer[i * sizeof(TYPE_EVENT) + 15] = (event_array[x].event_time >> 24) & 0xff;
+			data_buffer[i * sizeof(TYPE_EVENT) + 16] = (event_array[x].event_time >> 16) & 0xff;
+			data_buffer[i * sizeof(TYPE_EVENT) + 17] = (event_array[x].event_time >> 8) & 0xff;
+			data_buffer[i * sizeof(TYPE_EVENT) + 18] = event_array[x].event_time & 0xff;
+			data_buffer[i * sizeof(TYPE_EVENT) + 19] = (event_array[x].event_id >> 8) & 0xff;
+			data_buffer[i * sizeof(TYPE_EVENT) + 20] = event_array[x].event_id & 0xff;
+
+                        x++;
+                        if (x >= EVENT_ENTRIES)  x = 0;
+
+        }
         
-        data_buffer[13 + 30] = queue_buffer_room(QUEUE_MESSAGE_FROM_GUI);    
-        data_buffer[13 + 31] = queue_buffer_room(QUEUE_CAL_TO_GUI);    
-        data_buffer[13 + 32] = 0x11;  
-        data_buffer[13 + 33] = 0x66;
-        #else
-      	for (x = 0; x < total_bytes; x++)
-        	data_buffer[x + 13] = x;
-		#endif
-        total_bytes += 13;
+        event_array_gui_pointer = x; //  next entry
+
+        total_bytes = i * sizeof(TYPE_EVENT) + 13;
+
+
        
        break;
       case MODBUS_WR_ONE_CAL_ENTRY:
