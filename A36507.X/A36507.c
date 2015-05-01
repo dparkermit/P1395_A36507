@@ -1483,12 +1483,33 @@ void ExecuteEthernetCommand(unsigned int personality) {
       // DPARKER ADD IN THE PULSE SYNC SETTINGS
       
     case REGISTER_CMD_COOLANT_INTERFACE_ALLOW_25_MORE_SF6_PULSES:
+      can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_COOLING_INTERFACE_BOARD << 3));
+      can_message.word3 = ETM_CAN_REGISTER_COOLING_CMD_SF6_PULSE_LIMIT_OVERRIDE;
+      can_message.word2 = 0;
+      can_message.word1 = 0;
+      can_message.word0 = 0;
+      ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+      MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()  
       break;
 
     case REGISTER_CMD_COOLANT_INTERFACE_ALLOW_SF6_PULSES_WHEN_PRESSURE_BELOW_LIMIT:
+      can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_COOLING_INTERFACE_BOARD << 3));
+      can_message.word3 = ETM_CAN_REGISTER_COOLING_CMD_SF6_LEAK_LIMIT_OVERRIDE;
+      can_message.word2 = 0;
+      can_message.word1 = 0;
+      can_message.word0 = next_message.data_2;
+      ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+      MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()  
       break;
 
     case REGISTER_CMD_COOLANT_INTERFACE_SET_SF6_PULSES_IN_BOTTLE:
+      can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_COOLING_INTERFACE_BOARD << 3));
+      can_message.word3 = ETM_CAN_REGISTER_COOLING_CMD_RESET_BOTTLE_COUNT;
+      can_message.word2 = 0;
+      can_message.word1 = 0;
+      can_message.word0 = next_message.data_2;
+      ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+      MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()  
       break;
 
     case REGISTER_SPECIAL_SET_TIME:
