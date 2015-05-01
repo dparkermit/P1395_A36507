@@ -13,6 +13,7 @@
 #include "ETM_EEPROM.h"
 #include "TCPmodbus.h"
 
+#include "ETMmodbus.h"
 //#include "ETM_CAN_PUBLIC.h"
 //#include "ETM_CAN_P1395_MASTER.h"
 #include "P1395_CAN_MASTER.h"

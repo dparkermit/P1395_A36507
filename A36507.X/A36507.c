@@ -567,10 +567,25 @@ void CalculateHeaterWarmupTimers(void) {
 #define SEND_BUFFER_B            0
 
 
+#define DEBUG_ETMMODBUS
+
+
+
 void DoA36507(void) {
+#ifdef DEBUG_ETMMODBUS
+   static MODBUS_RESP_SMALL etmmodbus_test[4];
+   static unsigned etmmodbus_index = 0;
+   static unsigned etmmodbus_relay_set_index = 0;
+   static unsigned etmmodbus_relay_toggle = 0;
+#endif 
+
   ETMCanMasterDoCan();
   TCPmodbus_task();
   ExecuteEthernetCommand(1);  // DPARKER This is using personality 1, should read from pulse sync
+
+#ifndef __IGNORE_TCU
+  ETMmodbus_task();
+#endif
 
   if ((global_data_A36507.buffer_a_ready_to_send) & (!global_data_A36507.buffer_a_sent)) {
     SendPulseData(SEND_BUFFER_A);
@@ -622,6 +637,69 @@ void DoA36507(void) {
     // 10ms Timer has expired
     _T5IF = 0;
     global_data_A36507.millisecond_counter += 10;
+    
+#ifndef __IGNORE_TCU
+    if (ETMmodbus_timer_10ms < 60000) ETMmodbus_timer_10ms++;
+    
+    #ifdef DEBUG_ETMMODBUS
+    	if (global_data_A36507.millisecond_counter == 500)
+        {
+        	switch (etmmodbus_index)
+            {
+        	case 0:
+            	ETMModbusReadCoilsSmall(0x177d, 3, &etmmodbus_test[etmmodbus_index]);  // T14-T16
+            	break;
+        	case 1:
+            	ETMModbusReadCoilsSmall(0x17e0, 10, &etmmodbus_test[etmmodbus_index]);	// T113-T122
+            	break;
+        	case 2:
+            	ETMModbusReadHoldingRegistersSmall(0xfa6, 1, &etmmodbus_test[etmmodbus_index]);	// R1007, temp read
+            	break;
+        	case 3:
+            	ETMModbusWriteSingleCoil(0x177d + etmmodbus_relay_set_index, etmmodbus_relay_toggle, &etmmodbus_test[etmmodbus_index]);
+                etmmodbus_relay_toggle = etmmodbus_relay_toggle? 0: 1;
+                if (etmmodbus_relay_toggle == 0)
+                {
+                	etmmodbus_relay_set_index += 1;
+                    if (etmmodbus_relay_set_index > 2) etmmodbus_relay_set_index = 0;
+                }
+            	break;
+        	default:
+            	break;
+            }
+        	etmmodbus_index	+= 1;
+            if (etmmodbus_index >= 4) etmmodbus_index = 0;
+            
+            // check readbacks 
+           	if (etmmodbus_test[0].done)
+            {
+            	if (etmmodbus_test[0].done == ETMMODBUS_RESPONSE_OK)
+                
+                local_debug_data.debug_E &= 0xfff0;
+                local_debug_data.debug_E |= etmmodbus_test[0].data & 0x0f;
+            	etmmodbus_test[0].done = 0;
+                
+            }
+           	if (etmmodbus_test[1].done)
+            {
+            	if (etmmodbus_test[1].done == ETMMODBUS_RESPONSE_OK)
+                
+                local_debug_data.debug_E &= 0x000f;
+                local_debug_data.debug_E |= (etmmodbus_test[1].data << 4) & 0xfff0;
+            	etmmodbus_test[1].done = 0;
+                
+            }
+           	if (etmmodbus_test[2].done)
+            {
+            	if (etmmodbus_test[2].done == ETMMODBUS_RESPONSE_OK)
+                	local_debug_data.debug_F = etmmodbus_test[2].data;
+            	etmmodbus_test[2].done = 0;
+                
+            }
+            
+        }
+    #endif    
+#endif
     
     // Copy data from global variable strucutre to strucutre that gets sent to GUI
     // DPARKER do something better here
@@ -977,6 +1055,11 @@ void InitializeA36507(void) {
   
   // Initialize TCPmodbus Module
   TCPmodbus_init();
+
+#ifndef __IGNORE_TCU
+  // Initialize ETMmodbus Module
+  ETMmodbus_init();
+#endif
 
   //Initialize the internal ADC for Startup Power Checks
   // ---- Configure the dsPIC ADC Module ------------ //

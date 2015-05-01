@@ -39,6 +39,8 @@
       <itemPath>../../P1395_Modules/P1395_MODULE_CONFIG.h</itemPath>
       <itemPath>A36507.h</itemPath>
       <itemPath>FIRMWARE_VERSION.h</itemPath>
+      <itemPath>Buffern.h</itemPath>
+      <itemPath>ETMmodbus.h</itemPath>
     </logicalFolder>
     <logicalFolder name="LinkerScript"
                    displayName="Linker Files"
@@ -70,6 +72,8 @@
       <itemPath>../../P1395_Modules/ETM_SCALE.s</itemPath>
       <itemPath>../../P1395_Modules/ETM_EEPROM_EXTERNAL.c</itemPath>
       <itemPath>../../P1395_Modules/P1395_CAN_MASTER.c</itemPath>
+      <itemPath>Buffern.c</itemPath>
+      <itemPath>ETMmodbus.c</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"
